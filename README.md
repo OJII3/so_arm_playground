@@ -39,7 +39,7 @@ uv pip install -e 'VRTeleop[real]'
 Godot project は `VRTeleop/project.godot` です。
 
 ```bash
-nix develop .#godot
+nix develop
 godot4 --editor VRTeleop/project.godot
 ```
 

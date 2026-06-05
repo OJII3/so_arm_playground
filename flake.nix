@@ -39,6 +39,7 @@
           commonPackages = [
             python
             pkgs.git
+            pkgs.godot_4
             pkgs.uv
           ];
 
@@ -69,12 +70,7 @@
           };
 
           godot = pkgs.mkShell {
-            packages =
-              commonPackages
-              ++ linuxRuntimePackages
-              ++ [
-                pkgs.godot_4
-              ];
+            packages = commonPackages ++ linuxRuntimePackages;
             shellHook = shellHook + ''
               echo "Godot is available in this shell as: godot4"
               echo "For Quest/OpenXR work on macOS, a user-installed Godot.app is usually easier."

@@ -39,11 +39,11 @@ Godot も Nix shell から試す場合:
 
 ```bash
 cd ..
-nix develop .#godot
+nix develop
 godot4 --editor VRTeleop/project.godot
 ```
 
-Quest/OpenXR と GUI アプリ連携が絡むため、特に macOS では Godot だけは公式配布の Godot.app やユーザー環境に入れたものを使う方が扱いやすいです。既定の `nix develop` は Python bridge の実行と pytest に必要な環境だけを入れます。
+Quest/OpenXR と GUI アプリ連携が絡むため、特に macOS では Godot だけは公式配布の Godot.app やユーザー環境に入れたものを使う方が扱いやすいです。
 
 venv を使う場合:
 
