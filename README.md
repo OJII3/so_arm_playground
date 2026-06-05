@@ -43,9 +43,7 @@ nix develop
 godot4 --editor VRTeleop/project.godot
 ```
 
-`nix develop` 内の `godot4` は Nix 版 Godot を OpenGL compatibility renderer で開く wrapper です。macOS では Nix 版 Godot の Metal renderer が起動時にクラッシュすることがあるため、編集時はこちらを使います。
-
-ただし Quest/OpenXR と GUI アプリ連携が絡むため、実機 VR 実行では公式配布の Godot.app やユーザー環境に入れた Godot を使う方が扱いやすいです。
+macOS では nixpkgs 版 Godot が Meta XR Simulator 接続後の Metal shader compilation でクラッシュすることがあるため、`nix develop` 内の `godot4` は公式配布の Godot 4.6.3 macOS universal build を使います。Linux では nixpkgs の Godot 4 を使います。
 
 ## Meta XR Simulator
 

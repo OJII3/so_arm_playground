@@ -49,6 +49,35 @@
             runHook postInstall
           '';
         };
+
+      mkOfficialGodotMacos =
+        pkgs:
+        pkgs.stdenvNoCC.mkDerivation {
+          pname = "godot";
+          version = "4.6.3-stable-official";
+
+          src = pkgs.fetchurl {
+            url = "https://github.com/godotengine/godot/releases/download/4.6.3-stable/Godot_v4.6.3-stable_macos.universal.zip";
+            hash = "sha256-MGMPPpsR4Qs1wfkLqIFBhdzsQ/rhpINFFZvnVSxkv+g=";
+          };
+
+          nativeBuildInputs = [
+            pkgs.makeWrapper
+            pkgs.unzip
+          ];
+
+          dontUnpack = true;
+
+          installPhase = ''
+            runHook preInstall
+
+            mkdir -p "$out/Applications" "$out/bin"
+            unzip -q "$src" -d "$out/Applications"
+            makeWrapper "$out/Applications/Godot.app/Contents/MacOS/Godot" "$out/bin/godot4"
+
+            runHook postInstall
+          '';
+        };
     in
     {
       packages = forAllSystems (
@@ -71,10 +100,12 @@
             ]
           );
 
+          godotPackage = if pkgs.stdenv.isDarwin then mkOfficialGodotMacos pkgs else pkgs.godot_4;
+
           godotCompat = pkgs.writeShellApplication {
             name = "godot4";
             text = ''
-              exec "${pkgs.godot_4}/bin/godot4" --rendering-driver opengl3 --rendering-method gl_compatibility "$@"
+              exec "${godotPackage}/bin/godot4" "$@"
             '';
           };
 
@@ -165,8 +196,7 @@
             packages = commonPackages ++ linuxRuntimePackages;
             shellHook = shellHook + ''
               echo "Godot is available in this shell as: godot4"
-              echo "godot4 uses the compatibility renderer on macOS to avoid Metal startup crashes."
-              echo "For Quest/OpenXR work on macOS, a user-installed Godot.app is usually easier."
+              echo "godot4 uses the official Godot macOS build on Darwin."
             '';
           };
         }
