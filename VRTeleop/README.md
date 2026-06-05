@@ -43,9 +43,7 @@ nix develop
 godot4 --editor VRTeleop/project.godot
 ```
 
-`nix develop` 内の `godot4` は Nix 版 Godot を OpenGL compatibility renderer で開く wrapper です。macOS では Nix 版 Godot の Metal renderer が起動時にクラッシュすることがあるため、編集時はこちらを使います。
-
-Quest/OpenXR と GUI アプリ連携が絡むため、実機 VR 実行では Godot だけは公式配布の Godot.app やユーザー環境に入れたものを使う方が扱いやすいです。
+macOS では nixpkgs 版 Godot が Meta XR Simulator 接続後の Metal shader compilation でクラッシュすることがあるため、`nix develop` 内の `godot4` は公式配布の Godot 4.6.3 macOS universal build を使います。Linux では nixpkgs の Godot 4 を使います。
 
 Meta XR Simulator を使う場合、Apple Silicon Mac の `nix develop` では OpenXR runtime が shell 内で自動設定されます。
 
@@ -99,5 +97,7 @@ python -m vrteleop_bridge \
 ## Godot
 
 Godot 4 で `project.godot` を開き、OpenXR plugin/runtime が有効な状態で実行してください。右 trigger を gripper 指令、右 grip を enable 入力として送ります。
+
+Godot は controller pose を UDP `127.0.0.1:50530` へ送ります。bridge 未起動でも scene 単体確認はできますが、SO-101 指令を確認する場合は先に `python -m vrteleop_bridge --config config/default.json --backend dry-run` を起動してください。
 
 安全のため、既定 backend は `dry-run` です。実機に送る前に `dry-run` と MuJoCo でワークスペース、座標方向、関節可動域を確認してください。

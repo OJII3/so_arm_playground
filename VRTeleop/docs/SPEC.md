@@ -17,7 +17,7 @@ Quest 3 の右コントローラー位置を SO-101 follower arm のエンドエ
 
 ## 通信
 
-Godot から Python へ UDP `127.0.0.1:50530` に JSON を送る。
+Godot から Python へ UDP `127.0.0.1:50530` に JSON を送る。Godot 側は受信側 bridge が未起動でも OpenXR scene を単体確認できるよう、connected UDP ではなく destination address 指定で片方向送信する。
 
 ```json
 {

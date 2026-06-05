@@ -11,9 +11,9 @@ var _accumulator := 0.0
 
 
 func _ready() -> void:
-	var err := _udp.connect_to_host(udp_host, udp_port)
+	var err := _udp.set_dest_address(udp_host, udp_port)
 	if err != OK:
-		push_error("Failed to connect UDP pose sender: %s" % err)
+		push_error("Failed to configure UDP pose sender: %s" % err)
 
 
 func _physics_process(delta: float) -> void:
