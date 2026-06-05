@@ -40,10 +40,10 @@ Godot も Nix shell から試す場合:
 ```bash
 cd ..
 nix develop
-godot4-editor --editor VRTeleop/project.godot
+godot4 --editor VRTeleop/project.godot
 ```
 
-`godot4-editor` は Nix 版 Godot editor を OpenGL compatibility renderer で開く wrapper です。macOS では Nix 版 Godot の Metal renderer が起動時にクラッシュすることがあるため、編集時はこちらを使います。
+`nix develop` 内の `godot4` は Nix 版 Godot を OpenGL compatibility renderer で開く wrapper です。macOS では Nix 版 Godot の Metal renderer が起動時にクラッシュすることがあるため、編集時はこちらを使います。
 
 Quest/OpenXR と GUI アプリ連携が絡むため、実機 VR 実行では Godot だけは公式配布の Godot.app やユーザー環境に入れたものを使う方が扱いやすいです。
 
@@ -53,7 +53,7 @@ Meta XR Simulator を使う場合、Apple Silicon Mac の `nix develop` では O
 cd ..
 nix develop
 echo "$XR_RUNTIME_JSON"
-godot4 VRTeleop/project.godot
+godot4 --editor VRTeleop/project.godot
 ```
 
 Mixed Reality 用の Synthetic Environment Server は、必要な部屋を 1 つだけ起動します。
