@@ -40,10 +40,12 @@ Godot も Nix shell から試す場合:
 ```bash
 cd ..
 nix develop
-godot4 --editor VRTeleop/project.godot
+godot4-editor --editor VRTeleop/project.godot
 ```
 
-Quest/OpenXR と GUI アプリ連携が絡むため、特に macOS では Godot だけは公式配布の Godot.app やユーザー環境に入れたものを使う方が扱いやすいです。
+`godot4-editor` は Nix 版 Godot editor を OpenGL compatibility renderer で開く wrapper です。macOS では Nix 版 Godot の Metal renderer が起動時にクラッシュすることがあるため、編集時はこちらを使います。
+
+Quest/OpenXR と GUI アプリ連携が絡むため、実機 VR 実行では Godot だけは公式配布の Godot.app やユーザー環境に入れたものを使う方が扱いやすいです。
 
 venv を使う場合:
 

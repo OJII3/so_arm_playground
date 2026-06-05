@@ -40,7 +40,9 @@ Godot project は `VRTeleop/project.godot` です。
 
 ```bash
 nix develop
-godot4 --editor VRTeleop/project.godot
+godot4-editor --editor VRTeleop/project.godot
 ```
 
-ただし Quest/OpenXR と GUI アプリ連携が絡むため、特に macOS では公式配布の Godot.app やユーザー環境に入れた Godot を使う方が扱いやすいです。
+`godot4-editor` は Nix 版 Godot editor を OpenGL compatibility renderer で開く wrapper です。macOS では Nix 版 Godot の Metal renderer が起動時にクラッシュすることがあるため、編集時はこちらを使います。
+
+ただし Quest/OpenXR と GUI アプリ連携が絡むため、実機 VR 実行では公式配布の Godot.app やユーザー環境に入れた Godot を使う方が扱いやすいです。

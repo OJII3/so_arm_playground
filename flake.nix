@@ -36,10 +36,19 @@
             ]
           );
 
+          godotEditor = pkgs.writeShellApplication {
+            name = "godot4-editor";
+            runtimeInputs = [ pkgs.godot_4 ];
+            text = ''
+              exec godot4 --rendering-driver opengl3 --rendering-method gl_compatibility "$@"
+            '';
+          };
+
           commonPackages = [
             python
             pkgs.git
             pkgs.godot_4
+            godotEditor
             pkgs.uv
           ];
 
@@ -56,6 +65,7 @@
             echo "SO arm playground dev shell"
             echo "  pytest VRTeleop/tests"
             echo "  cd VRTeleop && python -m vrteleop_bridge --config config/default.json --backend dry-run"
+            echo "  godot4-editor --editor VRTeleop/project.godot"
             echo ""
             echo "Optional Python packages are installed through uv in a project venv:"
             echo "  uv venv"
@@ -73,6 +83,7 @@
             packages = commonPackages ++ linuxRuntimePackages;
             shellHook = shellHook + ''
               echo "Godot is available in this shell as: godot4"
+              echo "Use godot4-editor for the editor on macOS if the Metal renderer crashes."
               echo "For Quest/OpenXR work on macOS, a user-installed Godot.app is usually easier."
             '';
           };
