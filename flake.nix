@@ -1,5 +1,5 @@
 {
-  description = "Development environment for VRTeleop";
+  description = "SO arm playground monorepo development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -51,15 +51,15 @@
           ];
 
           shellHook = ''
-            export PYTHONPATH="$PWD''${PYTHONPATH:+:$PYTHONPATH}"
-            echo "VRTeleop dev shell"
-            echo "  python -m vrteleop_bridge --config config/default.json --backend dry-run"
-            echo "  pytest -q"
+            export PYTHONPATH="$PWD/VRTeleop''${PYTHONPATH:+:$PYTHONPATH}"
+            echo "SO arm playground dev shell"
+            echo "  pytest VRTeleop/tests"
+            echo "  cd VRTeleop && python -m vrteleop_bridge --config config/default.json --backend dry-run"
             echo ""
-            echo "MuJoCo and LeRobot are installed through Python packaging, not nixpkgs:"
+            echo "Optional Python packages are installed through uv in a project venv:"
             echo "  uv venv"
-            echo "  uv pip install -e '.[sim]'"
-            echo "  pip install 'lerobot[feetech]'"
+            echo "  uv pip install -e 'VRTeleop[sim]'"
+            echo "  uv pip install -e 'VRTeleop[real]'"
           '';
         in
         {
@@ -95,11 +95,11 @@
           );
         in
         {
-          unit = pkgs.runCommand "vrteleop-unit-tests" { nativeBuildInputs = [ python ]; } ''
+          vrteleop-unit = pkgs.runCommand "vrteleop-unit-tests" { nativeBuildInputs = [ python ]; } ''
             cp -r ${./.} source
             cd source
-            export PYTHONPATH="$PWD"
-            pytest -q
+            export PYTHONPATH="$PWD/VRTeleop"
+            pytest VRTeleop/tests -q
             touch $out
           '';
         }

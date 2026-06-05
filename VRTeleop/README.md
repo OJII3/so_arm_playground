@@ -17,25 +17,30 @@ Godot 4 + OpenXR で Quest 3 の右コントローラー pose を読み、Python
 Nix を使う場合:
 
 ```bash
+cd ..
 nix develop
+cd VRTeleop
 python -m vrteleop_bridge --config config/default.json --backend dry-run
-pytest -q
+pytest tests
 ```
 
 MuJoCo Python API を使う場合は、nixpkgs 側の `mujoco` が broken になることがあるため、プロジェクト venv に入れます。
 
 ```bash
+cd ..
 nix develop
 uv venv
-uv pip install -e '.[sim]'
+uv pip install -e 'VRTeleop[sim]'
+cd VRTeleop
 python -m vrteleop_bridge --config config/default.json --backend mujoco --mjcf sim/so101_minimal.xml
 ```
 
 Godot も Nix shell から試す場合:
 
 ```bash
+cd ..
 nix develop .#godot
-godot4 --editor project.godot
+godot4 --editor VRTeleop/project.godot
 ```
 
 Quest/OpenXR と GUI アプリ連携が絡むため、特に macOS では Godot だけは公式配布の Godot.app やユーザー環境に入れたものを使う方が扱いやすいです。既定の `nix develop` は Python bridge の実行と pytest に必要な環境だけを入れます。
