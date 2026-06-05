@@ -46,3 +46,21 @@ godot4-editor --editor VRTeleop/project.godot
 `godot4-editor` は Nix 版 Godot editor を OpenGL compatibility renderer で開く wrapper です。macOS では Nix 版 Godot の Metal renderer が起動時にクラッシュすることがあるため、編集時はこちらを使います。
 
 ただし Quest/OpenXR と GUI アプリ連携が絡むため、実機 VR 実行では公式配布の Godot.app やユーザー環境に入れた Godot を使う方が扱いやすいです。
+
+## Meta XR Simulator
+
+Apple Silicon Mac の `nix develop` では Meta XR Simulator v71.0.0 も入り、OpenXR runtime は shell 内で自動設定されます。システム全体の OpenXR runtime symlink は変更しません。
+
+```bash
+nix develop
+echo "$XR_RUNTIME_JSON"
+godot4 VRTeleop/project.godot
+```
+
+Mixed Reality 用の Synthetic Environment Server は、必要な部屋を 1 つだけ起動します。
+
+```bash
+meta-xr-sim-living-room
+meta-xr-sim-game-room
+meta-xr-sim-bedroom
+```

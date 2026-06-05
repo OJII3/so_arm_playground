@@ -47,6 +47,23 @@ godot4-editor --editor VRTeleop/project.godot
 
 Quest/OpenXR と GUI アプリ連携が絡むため、実機 VR 実行では Godot だけは公式配布の Godot.app やユーザー環境に入れたものを使う方が扱いやすいです。
 
+Meta XR Simulator を使う場合、Apple Silicon Mac の `nix develop` では OpenXR runtime が shell 内で自動設定されます。
+
+```bash
+cd ..
+nix develop
+echo "$XR_RUNTIME_JSON"
+godot4 VRTeleop/project.godot
+```
+
+Mixed Reality 用の Synthetic Environment Server は、必要な部屋を 1 つだけ起動します。
+
+```bash
+meta-xr-sim-living-room
+meta-xr-sim-game-room
+meta-xr-sim-bedroom
+```
+
 venv を使う場合:
 
 ```bash
