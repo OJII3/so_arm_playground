@@ -6,6 +6,11 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+sim = ["mujoco>=3.2"]
+real = ["lerobot[feetech]"]
+dev = ["pytest"]
+
 [project.scripts]
 vrteleop-bridge = "vrteleop_bridge.cli:main"
 
