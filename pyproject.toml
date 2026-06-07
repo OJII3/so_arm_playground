@@ -1,7 +1,0 @@
-[project]
-name = "so-arm-playground"
-version = "0.1.0"
-description = "Monorepo for SO-101 and SO-ARM experiments"
-readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
