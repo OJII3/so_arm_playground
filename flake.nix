@@ -30,14 +30,7 @@
       devShells = forAllSystems (
         pkgs:
         let
-          python = pkgs.python312.withPackages (
-            ps: with ps; [
-              pytest
-            ]
-          );
-
           commonPackages = [
-            python
             pkgs.git
             pkgs.uv
           ];
