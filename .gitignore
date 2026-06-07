@@ -9,8 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
-# direnv
+# nix, direnv
 .direnv/
+result/
 
 # claude
 .claude/*.local.*
