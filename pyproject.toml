@@ -1,7 +1,14 @@
 [project]
 name = "so-arm-playground"
 version = "0.1.0"
-description = "Add your description here"
+description = "Monorepo for SO-101 and SO-ARM experiments"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = []
+
+[tool.uv.workspace]
+members = ["VRTeleop"]
+
+[tool.pytest.ini_options]
+testpaths = ["VRTeleop/tests"]
+pythonpath = ["VRTeleop"]
