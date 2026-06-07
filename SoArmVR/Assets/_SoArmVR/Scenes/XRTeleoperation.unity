@@ -216,6 +216,99 @@ Transform:
   m_Children: []
   m_Father: {fileID: 619442509}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+--- !u!1001 &372029622
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 1.79539
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1.86301
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941009, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.data[0].platformType
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.data[1].platformType
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.data[0].permissions.Array.size
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.data[1].permissions.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.data[0].permissions.Array.data[1].enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.data[1].permissions.Array.data[0].enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.data[0].permissions.Array.data[1].permissionId
+      value: android.permission.USE_SCENE
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941014, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_PermissionGroups.Array.data[1].permissions.Array.data[0].permissionId
+      value: android.permission.HAND_TRACKING
+      objectReference: {fileID: 0}
+    - target: {fileID: 3293653894479941015, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
+      propertyPath: m_Name
+      value: Permissions Manager
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: faf53399145e13c4b992b14c97b5f4c0, type: 3}
 --- !u!1 &619442508
 GameObject:
   m_ObjectHideFlags: 0
@@ -311,3 +404,4 @@ SceneRoots:
   m_Roots:
   - {fileID: 619442509}
   - {fileID: 6468596439578330754}
+  - {fileID: 372029622}
