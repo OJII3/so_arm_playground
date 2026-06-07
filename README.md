@@ -4,9 +4,8 @@ SO-101 / SO-ARM 系の実験をまとめるモノレポです。今後 ROS、ACT
 
 ## 構成
 
-- `VRTeleop/`: SO-101 の VR teleoperation プロジェクト（Unity で再構築予定）
+- `SoArmVR/`: SO-101 の VR teleoperation プロジェクト（Unity）
 - `flake.nix`: モノレポ共通の開発 shell
-- `.python-version`: ローカル Python バージョンの目安
 
 実験は責務ごとにトップレベルディレクトリを分けます。例: `ros/`, `act/`, `vla/`, `datasets/`, `tools/`。
 
