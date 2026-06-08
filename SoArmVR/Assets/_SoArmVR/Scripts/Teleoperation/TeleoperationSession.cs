@@ -16,7 +16,7 @@ namespace SoArmVR.Teleoperation
         Transform _poseSource;
 
         [SerializeField]
-        WorldAlignedAnchor _anchor;
+        TeleoperationAnchor _anchor;
 
         [SerializeField, Tooltip("ITeleoperationSink を実装した MonoBehaviour")]
         MonoBehaviour _sinkBehaviour;
