@@ -78,6 +78,7 @@
         let
           pkgs = import nixpkgs { inherit system; };
           uloop = mkUloop pkgs;
+          isLinux = pkgs.stdenv.isLinux;
 
           commonPackages = [
             pkgs.git
@@ -85,7 +86,7 @@
             uloop
           ];
 
-          linuxRuntimePackages = pkgs.lib.optionals pkgs.stdenv.isLinux [
+          linuxRuntimePackages = pkgs.lib.optionals isLinux [
             pkgs.libGL
             pkgs.libx11
             pkgs.libxcursor
@@ -102,35 +103,42 @@
             packages = commonPackages ++ linuxRuntimePackages;
             inherit shellHook;
           };
-        }
-        # ROS 2 開発シェル (`nix develop .#ros`). nix-ros-overlay は Linux のみ実用なため
-        # darwin では定義しない (その場合は ros2_ws/podman/ を使う).
-        //
-          pkgs.lib.optionalAttrs
-            (builtins.elem system [
-              "x86_64-linux"
-              "aarch64-linux"
-            ])
-            {
-              ros =
-                let
-                  # overlay 自身がテスト/キャッシュ済みの nixpkgs に overlay を適用し
-                  # full pkgs (mkShell, colcon, rosPackages 等) を得る.
-                  rosPkgs = import nix-ros-overlay.inputs.nixpkgs {
-                    inherit system;
-                    overlays = [ nix-ros-overlay.overlays.default ];
-                  };
-                  # crayzeewulf/LibSerial は nixpkgs に無いため自作 (ros2_ws/nix/libserial.nix).
-                  libserial = rosPkgs.callPackage ./ros2_ws/nix/libserial.nix { };
-                in
-                import ./ros2_ws/nix/shell.nix {
-                  pkgs = rosPkgs;
-                  rosDistro = "jazzy";
-                  extraPkgs = {
-                    libserial-dev = libserial;
-                  };
+
+          # ROS 2 開発シェル (`nix develop .#ros`). ros2_ws 用.
+          # - Linux: nix-ros-overlay による native ROS 環境 + podman.
+          # - macOS: nix-ros-overlay は使えないので podman (+ qemu) のみ.
+          #          実機/sim は ros2_ws/podman/ のコンテナで動かす.
+          ros =
+            if isLinux then
+              let
+                # overlay 自身がテスト/キャッシュ済みの nixpkgs に overlay を適用し
+                # full pkgs (mkShell, colcon, rosPackages 等) を得る.
+                rosPkgs = import nix-ros-overlay.inputs.nixpkgs {
+                  inherit system;
+                  overlays = [ nix-ros-overlay.overlays.default ];
                 };
-            }
+                # crayzeewulf/LibSerial は nixpkgs に無いため自作 (ros2_ws/nix/libserial.nix).
+                libserial = rosPkgs.callPackage ./ros2_ws/nix/libserial.nix { };
+              in
+              import ./ros2_ws/nix/shell.nix {
+                pkgs = rosPkgs;
+                rosDistro = "jazzy";
+                extraPkgs = {
+                  libserial-dev = libserial;
+                };
+                extraPaths = [ rosPkgs.podman ];
+              }
+            else
+              pkgs.mkShell {
+                packages = [
+                  pkgs.podman
+                  pkgs.qemu
+                ];
+                shellHook = ''
+                  echo "ros2_ws: macOS では native ROS は不可。podman を使用 (./podman/run.sh)."
+                '';
+              };
+        }
       );
 
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
