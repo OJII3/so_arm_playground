@@ -45,6 +45,11 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
+direnv を使う場合は `cd ros2_ws` するだけで ROS シェルに自動で切り替わる
+(`ros2_ws/.envrc` がルート flake の `#ros` を読み込む)。`colcon build` 済みなら
+`install/setup.bash` も自動 source される。初回だけ `direnv allow` が必要。
+macOS では native に動かないため podman を案内する (上記 方法 B)。
+
 `nix/` を再生成する場合 (`package.xml` を変更したとき):
 
 ```bash
