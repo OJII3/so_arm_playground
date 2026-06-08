@@ -13,6 +13,10 @@ wheels/
 .direnv/
 result/
 
+# ROS 2 / colcon (build/ is already ignored above)
+install/
+log/
+
 # claude
 .claude/*.local.*
 .claude/worktrees/

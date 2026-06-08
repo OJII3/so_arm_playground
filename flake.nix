@@ -1,12 +1,21 @@
 {
   description = "SO arm playground monorepo development environment";
 
+  # nix-ros-overlay のバイナリキャッシュ. ROS パッケージのソースビルドを避ける.
+  nixConfig = {
+    extra-substituters = [ "https://ros.cachix.org" ];
+    extra-trusted-public-keys = [ "ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=" ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # ROS 2 用 overlay (Linux のみ). nixpkgs は overlay 側のピンに任せ follows しない
+    # (unstable に follows させると overlay のビルドが壊れやすいため).
+    nix-ros-overlay.url = "github:lopsided98/nix-ros-overlay/f891b118c8f4ddb2b6f38d6ce1bfe2f8079552ba";
   };
 
   outputs =
-    { nixpkgs, ... }:
+    { nixpkgs, nix-ros-overlay, ... }:
     let
       systems = [
         "aarch64-darwin"
@@ -64,10 +73,12 @@
         uloop = mkUloop pkgs;
       });
 
-      devShells = forAllSystems (
-        pkgs:
+      devShells = nixpkgs.lib.genAttrs systems (
+        system:
         let
+          pkgs = import nixpkgs { inherit system; };
           uloop = mkUloop pkgs;
+          isLinux = pkgs.stdenv.isLinux;
 
           commonPackages = [
             pkgs.git
@@ -75,12 +86,12 @@
             uloop
           ];
 
-          linuxRuntimePackages = pkgs.lib.optionals pkgs.stdenv.isLinux [
+          linuxRuntimePackages = pkgs.lib.optionals isLinux [
             pkgs.libGL
-            pkgs.xorg.libX11
-            pkgs.xorg.libXcursor
-            pkgs.xorg.libXi
-            pkgs.xorg.libXrandr
+            pkgs.libx11
+            pkgs.libxcursor
+            pkgs.libxi
+            pkgs.libxrandr
           ];
 
           shellHook = ''
@@ -92,6 +103,28 @@
             packages = commonPackages ++ linuxRuntimePackages;
             inherit shellHook;
           };
+        }
+        # ROS 2 開発シェル (`nix develop .#ros`). nix-ros-overlay は Linux のみ実用なため
+        # darwin では定義しない (その場合は ros2_ws/podman/ を使う).
+        // pkgs.lib.optionalAttrs isLinux {
+          ros =
+            let
+              # overlay 自身がテスト/キャッシュ済みの nixpkgs に overlay を適用し
+              # full pkgs (mkShell, colcon, rosPackages 等) を得る.
+              rosPkgs = import nix-ros-overlay.inputs.nixpkgs {
+                inherit system;
+                overlays = [ nix-ros-overlay.overlays.default ];
+              };
+              # crayzeewulf/LibSerial は nixpkgs に無いため自作 (ros2_ws/nix/libserial.nix).
+              libserial = rosPkgs.callPackage ./ros2_ws/nix/libserial.nix { };
+            in
+            import ./ros2_ws/nix/shell.nix {
+              pkgs = rosPkgs;
+              rosDistro = "jazzy";
+              extraPkgs = {
+                libserial-dev = libserial;
+              };
+            };
         }
       );
 
