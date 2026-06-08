@@ -64,6 +64,9 @@ nix run github:wentasah/ros2nix -- \
 
 ## 起動方法 B: podman (macOS / 退避路)
 
+`podman` 自体も nix から入る。`nix develop .#ros`（または direnv で `cd ros2_ws`）すると
+podman が PATH に入る（macOS では podman + qemu のみ。初回は `podman machine init && podman machine start` が必要）。
+
 ```bash
 ./podman/run.sh                  # イメージを build して対話シェル
 ./podman/run.sh ros2 launch lerobot_description so101_display.launch.py
