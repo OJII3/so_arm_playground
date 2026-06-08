@@ -461,21 +461,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 237e773c6f3a4457f8a807ce8d8e5d21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.TeleoperationSession
-  _poseSource: {fileID: 9126310890377717892}
+  _poseSource: {fileID: 5208336468798282873}
   _anchor: {fileID: 6901217975784877817}
   _sinkBehaviour: {fileID: 8892032476465055185}
-  _placeAnchorAction:
-    m_UseReference: 1
-    m_Action:
-      m_Name: 
-      m_Type: 0
-      m_ExpectedControlType: 
-      m_Id: 1d70a37e-e4b6-4bcf-9bda-27bc867e2ae1
-      m_Processors: 
-      m_Interactions: 
-      m_SingletonActionBindings: []
-      m_Flags: 0
-    m_Reference: {fileID: -6906190968246571066, guid: 2ce0dfd68d5744e8b84cfa36618c0e25, type: 3}
   _teleoperateAction:
     m_UseReference: 1
     m_Action:
@@ -557,13 +545,13 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e0d253e4e201b95449b5292f1fe55d79, type: 3}
+--- !u!4 &5208336468798282873 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 6232966461095422630, guid: e0d253e4e201b95449b5292f1fe55d79, type: 3}
+  m_PrefabInstance: {fileID: 2177573524899313375}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &7597658285083808091 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 8595126905216329604, guid: e0d253e4e201b95449b5292f1fe55d79, type: 3}
-  m_PrefabInstance: {fileID: 2177573524899313375}
-  m_PrefabAsset: {fileID: 0}
---- !u!4 &9126310890377717892 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 6962390148639432283, guid: e0d253e4e201b95449b5292f1fe55d79, type: 3}
   m_PrefabInstance: {fileID: 2177573524899313375}
   m_PrefabAsset: {fileID: 0}
