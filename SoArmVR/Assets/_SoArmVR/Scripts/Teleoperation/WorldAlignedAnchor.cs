@@ -31,6 +31,13 @@ namespace SoArmVR.Teleoperation
             SetVisualVisible(true);
         }
 
+        /// <summary>アンカーを未設置状態に戻し、見た目を隠す。</summary>
+        public void Clear()
+        {
+            IsPlaced = false;
+            SetVisualVisible(false);
+        }
+
         /// <summary>ワールド姿勢をアンカー基準の相対姿勢へ変換する。</summary>
         public void ToAnchorSpace(Vector3 worldPosition, Quaternion worldRotation,
             out Vector3 localPosition, out Quaternion localRotation)

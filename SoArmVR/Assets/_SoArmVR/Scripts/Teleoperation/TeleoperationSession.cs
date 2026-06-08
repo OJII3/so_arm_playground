@@ -5,8 +5,9 @@ namespace SoArmVR.Teleoperation
 {
     /// <summary>
     /// 右コントローラの入力を受けてテレオペレーションを統括する。
-    /// A ボタンでワールド整列アンカーを設置し、グリップ押下中のあいだ
+    /// グリップを押した瞬間にワールド整列アンカーを設置し、押下中のあいだ
     /// アンカー基準の相対姿勢をサンプリングして <see cref="ITeleoperationSink"/> へ送る。
+    /// グリップを離すとアンカーを消去する。
     /// </summary>
     public class TeleoperationSession : MonoBehaviour
     {
@@ -21,10 +22,7 @@ namespace SoArmVR.Teleoperation
         MonoBehaviour _sinkBehaviour;
 
         [Header("Input")]
-        [SerializeField, Tooltip("アンカー設置（右 A ボタン）")]
-        InputActionProperty _placeAnchorAction;
-
-        [SerializeField, Tooltip("テレオペ有効（右グリップ押下中）")]
+        [SerializeField, Tooltip("テレオペ有効（右グリップ押下中。押した瞬間に設置、離すと消去）")]
         InputActionProperty _teleoperateAction;
 
         [SerializeField, Tooltip("グリッパ開閉量（右トリガー 0..1）")]
@@ -43,14 +41,12 @@ namespace SoArmVR.Teleoperation
 
         void OnEnable()
         {
-            _placeAnchorAction.action?.Enable();
             _teleoperateAction.action?.Enable();
             _gripperAction.action?.Enable();
         }
 
         void OnDisable()
         {
-            _placeAnchorAction.action?.Disable();
             _teleoperateAction.action?.Disable();
             _gripperAction.action?.Disable();
             if (_active)
@@ -59,33 +55,23 @@ namespace SoArmVR.Teleoperation
 
         void Update()
         {
-            if (_placeAnchorAction.action != null && _placeAnchorAction.action.WasPressedThisFrame())
-                PlaceAnchor();
-
             bool hold = _teleoperateAction.action != null && _teleoperateAction.action.IsPressed();
             if (hold && !_active)
                 BeginSession();
             else if (!hold && _active)
                 EndSession();
 
-            if (_active && _poseSource != null && _anchor != null && _anchor.IsPlaced)
+            if (_active)
                 PushSample();
-        }
-
-        void PlaceAnchor()
-        {
-            if (_anchor == null || _poseSource == null)
-                return;
-
-            _anchor.Place(_poseSource.position, _poseSource.rotation);
         }
 
         void BeginSession()
         {
-            // アンカー未設置のあいだは開始しない（押し続けていれば設置後に開始される）
-            if (_anchor == null || !_anchor.IsPlaced)
+            if (_anchor == null || _poseSource == null)
                 return;
 
+            // グリップを押した瞬間の姿勢でアンカーを設置する
+            _anchor.Place(_poseSource.position, _poseSource.rotation);
             _active = true;
             _sampleId = 0;
             _sink?.OnSessionBegin();
@@ -95,6 +81,7 @@ namespace SoArmVR.Teleoperation
         {
             _active = false;
             _sink?.OnSessionEnd();
+            _anchor?.Clear();
         }
 
         void PushSample()
