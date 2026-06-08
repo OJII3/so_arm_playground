@@ -87,10 +87,10 @@
 
           linuxRuntimePackages = pkgs.lib.optionals pkgs.stdenv.isLinux [
             pkgs.libGL
-            pkgs.xorg.libX11
-            pkgs.xorg.libXcursor
-            pkgs.xorg.libXi
-            pkgs.xorg.libXrandr
+            pkgs.libx11
+            pkgs.libxcursor
+            pkgs.libxi
+            pkgs.libxrandr
           ];
 
           shellHook = ''
