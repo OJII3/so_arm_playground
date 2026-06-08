@@ -1,0 +1,54 @@
+{
+    "name": "SoArmTeleoperation",
+    "maps": [
+        {
+            "name": "Teleoperation",
+            "id": "763a3512-3045-42d4-9507-708bbb1cc7e5",
+            "actions": [
+                {
+                    "name": "Teleoperate",
+                    "type": "Button",
+                    "id": "8d6690f1-b046-4384-baec-585da3f83920",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
+                    "name": "Gripper",
+                    "type": "Value",
+                    "id": "09fa5555-240f-4c8c-969c-818708a05783",
+                    "expectedControlType": "Axis",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "88df4ef0-32c1-4d6a-bb3c-3c9df5932eb1",
+                    "path": "<XRController>{RightHand}/gripPressed",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Teleoperate",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "b2382962-9e48-4f90-baad-93b3a9020d39",
+                    "path": "<XRController>{RightHand}/trigger",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Gripper",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": []
+}
