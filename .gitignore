@@ -12,6 +12,7 @@ wheels/
 # nix, direnv
 .direnv/
 result/
+result
 
 # ROS 2 / colcon (build/ is already ignored above)
 install/
