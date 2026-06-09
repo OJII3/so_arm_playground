@@ -33,6 +33,11 @@ stdenv.mkDerivation {
     "-DLIBSERIAL_BUILD_EXAMPLES=OFF"
     "-DLIBSERIAL_PYTHON_ENABLE=OFF"
     "-DLIBSERIAL_BUILD_DOCS=OFF"
+    # Nix の cmake セットアップフックは CMAKE_INSTALL_LIBDIR 等を絶対パスに設定するが、
+    # libserial の CMakeLists.txt は prefix + libdir で .pc ファイルのパスを構築するため
+    # 二重パスになる。相対パスに強制して回避する。
+    "-DCMAKE_INSTALL_LIBDIR=lib"
+    "-DCMAKE_INSTALL_INCLUDEDIR=include"
   ];
 
   meta = {
