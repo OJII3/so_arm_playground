@@ -11,7 +11,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     # ROS 2 用 overlay (Linux のみ). nixpkgs は overlay 側のピンに任せ follows しない
     # (unstable に follows させると overlay のビルドが壊れやすいため).
-    nix-ros-overlay.url = "github:lopsided98/nix-ros-overlay/f891b118c8f4ddb2b6f38d6ce1bfe2f8079552ba";
+    nix-ros-overlay.url = "github:lopsided98/nix-ros-overlay/f42aabf01c2c1d5754021549c26591b2d422ac10";
   };
 
   outputs =
