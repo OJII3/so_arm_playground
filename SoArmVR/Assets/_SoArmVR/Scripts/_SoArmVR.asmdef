@@ -2,7 +2,8 @@
     "name": "SoArmVR",
     "rootNamespace": "SoArmVR",
     "references": [
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Rclsharp"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
