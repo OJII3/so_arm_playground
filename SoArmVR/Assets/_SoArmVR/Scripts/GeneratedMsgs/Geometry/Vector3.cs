@@ -4,61 +4,62 @@
 // </auto-generated>
 using Rclsharp.Cdr;
 
-namespace Rclsharp.Msgs.Geometry;
-
-/// <summary>
-/// geometry_msgs/msg/Vector3 の C# 表現 (生成コード)。
-/// </summary>
-public struct Vector3
+namespace Rclsharp.Msgs.Geometry
 {
-    public const string RosTypeName = "geometry_msgs/msg/Vector3";
-    public const string DdsTypeName = "geometry_msgs::msg::dds_::Vector3_";
-
-    public double X;
-    public double Y;
-    public double Z;
-
-    public Vector3(double x, double y, double z)
+    /// <summary>
+    /// geometry_msgs/msg/Vector3 の C# 表現 (生成コード)。
+    /// </summary>
+    public struct Vector3
     {
-        X = x;
-        Y = y;
-        Z = z;
+        public const string RosTypeName = "geometry_msgs/msg/Vector3";
+        public const string DdsTypeName = "geometry_msgs::msg::dds_::Vector3_";
+
+        public double X;
+        public double Y;
+        public double Z;
+
+        public Vector3(double x, double y, double z)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+        }
+
+        public override string ToString() => $"Vector3(x={X}, y={Y}, z={Z})";
     }
 
-    public override string ToString() => $"Vector3(x={X}, y={Y}, z={Z})";
-}
-
-public sealed class Vector3Serializer : ICdrSerializer<Vector3>
-{
-    public static readonly Vector3Serializer Instance = new();
-
-    public bool IsKeyed => false;
-
-    public int GetSerializedSize(in Vector3 value)
+    public sealed class Vector3Serializer : ICdrSerializer<Vector3>
     {
-        int total = 0;
-        total += 8;
-        total += 8;
-        total += 8;
-        return total;
-    }
+        public static readonly Vector3Serializer Instance = new();
 
-    public void Serialize(ref CdrWriter writer, in Vector3 value)
-    {
-        writer.WriteDouble(value.X);
-        writer.WriteDouble(value.Y);
-        writer.WriteDouble(value.Z);
-    }
+        public bool IsKeyed => false;
 
-    public void Deserialize(ref CdrReader reader, out Vector3 value)
-    {
-        double x = reader.ReadDouble();
-        double y = reader.ReadDouble();
-        double z = reader.ReadDouble();
-        value = new Vector3(x, y, z);
-    }
+        public int GetSerializedSize(in Vector3 value)
+        {
+            int total = 0;
+            total += 8;
+            total += 8;
+            total += 8;
+            return total;
+        }
 
-    public void SerializeKey(ref CdrWriter writer, in Vector3 value)
-    {
+        public void Serialize(ref CdrWriter writer, in Vector3 value)
+        {
+            writer.WriteDouble(value.X);
+            writer.WriteDouble(value.Y);
+            writer.WriteDouble(value.Z);
+        }
+
+        public void Deserialize(ref CdrReader reader, out Vector3 value)
+        {
+            double x = reader.ReadDouble();
+            double y = reader.ReadDouble();
+            double z = reader.ReadDouble();
+            value = new Vector3(x, y, z);
+        }
+
+        public void SerializeKey(ref CdrWriter writer, in Vector3 value)
+        {
+        }
     }
 }

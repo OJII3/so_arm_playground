@@ -1,5 +1,12 @@
 {
   "dependencies": {
+    "com.ojii3.rclsharp": {
+      "version": "https://github.com/OJII3/rclsharp.git?path=/src/rclsharp",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "935dd1ec223c770d6ebd1b0f8c795ee0db92e50f"
+    },
     "com.unity.burst": {
       "version": "1.8.27",
       "depth": 2,

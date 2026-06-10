@@ -4,61 +4,62 @@
 // </auto-generated>
 using Rclsharp.Cdr;
 
-namespace Rclsharp.Msgs.Geometry;
-
-/// <summary>
-/// geometry_msgs/msg/Point の C# 表現 (生成コード)。
-/// </summary>
-public struct Point
+namespace Rclsharp.Msgs.Geometry
 {
-    public const string RosTypeName = "geometry_msgs/msg/Point";
-    public const string DdsTypeName = "geometry_msgs::msg::dds_::Point_";
-
-    public double X;
-    public double Y;
-    public double Z;
-
-    public Point(double x, double y, double z)
+    /// <summary>
+    /// geometry_msgs/msg/Point の C# 表現 (生成コード)。
+    /// </summary>
+    public struct Point
     {
-        X = x;
-        Y = y;
-        Z = z;
+        public const string RosTypeName = "geometry_msgs/msg/Point";
+        public const string DdsTypeName = "geometry_msgs::msg::dds_::Point_";
+
+        public double X;
+        public double Y;
+        public double Z;
+
+        public Point(double x, double y, double z)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+        }
+
+        public override string ToString() => $"Point(x={X}, y={Y}, z={Z})";
     }
 
-    public override string ToString() => $"Point(x={X}, y={Y}, z={Z})";
-}
-
-public sealed class PointSerializer : ICdrSerializer<Point>
-{
-    public static readonly PointSerializer Instance = new();
-
-    public bool IsKeyed => false;
-
-    public int GetSerializedSize(in Point value)
+    public sealed class PointSerializer : ICdrSerializer<Point>
     {
-        int total = 0;
-        total += 8;
-        total += 8;
-        total += 8;
-        return total;
-    }
+        public static readonly PointSerializer Instance = new();
 
-    public void Serialize(ref CdrWriter writer, in Point value)
-    {
-        writer.WriteDouble(value.X);
-        writer.WriteDouble(value.Y);
-        writer.WriteDouble(value.Z);
-    }
+        public bool IsKeyed => false;
 
-    public void Deserialize(ref CdrReader reader, out Point value)
-    {
-        double x = reader.ReadDouble();
-        double y = reader.ReadDouble();
-        double z = reader.ReadDouble();
-        value = new Point(x, y, z);
-    }
+        public int GetSerializedSize(in Point value)
+        {
+            int total = 0;
+            total += 8;
+            total += 8;
+            total += 8;
+            return total;
+        }
 
-    public void SerializeKey(ref CdrWriter writer, in Point value)
-    {
+        public void Serialize(ref CdrWriter writer, in Point value)
+        {
+            writer.WriteDouble(value.X);
+            writer.WriteDouble(value.Y);
+            writer.WriteDouble(value.Z);
+        }
+
+        public void Deserialize(ref CdrReader reader, out Point value)
+        {
+            double x = reader.ReadDouble();
+            double y = reader.ReadDouble();
+            double z = reader.ReadDouble();
+            value = new Point(x, y, z);
+        }
+
+        public void SerializeKey(ref CdrWriter writer, in Point value)
+        {
+        }
     }
 }

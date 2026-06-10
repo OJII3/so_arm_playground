@@ -5,6 +5,8 @@ using Rclsharp.Msgs.Std;
 using Rclsharp.Msgs.BuiltinInterfaces;
 
 using RosQuaternion = Rclsharp.Msgs.Geometry.Quaternion;
+using RosPose = Rclsharp.Msgs.Geometry.Pose;
+using RosTime = Rclsharp.Msgs.BuiltinInterfaces.Time;
 
 namespace SoArmVR.Teleoperation
 {
@@ -81,11 +83,11 @@ namespace SoArmVR.Teleoperation
             if (_posePub == null) return;
 
             var now = System.DateTimeOffset.UtcNow;
-            var stamp = new Time((int)now.ToUnixTimeSeconds(), (uint)(now.Millisecond * 1_000_000));
+            var stamp = new RosTime((int)now.ToUnixTimeSeconds(), (uint)(now.Millisecond * 1_000_000));
 
             var msg = new PoseStamped(
                 new Header(stamp, "teleop"),
-                new Pose(
+                new RosPose(
                     new Point(sample.position.x, sample.position.y, sample.position.z),
                     new RosQuaternion(sample.rotation.x, sample.rotation.y, sample.rotation.z, sample.rotation.w)
                 )
