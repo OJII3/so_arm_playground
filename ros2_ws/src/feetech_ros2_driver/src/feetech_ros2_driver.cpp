@@ -183,6 +183,7 @@ hardware_interface::return_type FeetechHardwareInterface::read(const rclcpp::Tim
   data.reserve(joint_ids_.size());
   if (auto result = communication_protocol_->sync_read(joint_ids_, SMS_STS_PRESENT_POSITION_L, &data); !result) {
     spdlog::error("FeetechHardwareInterface::read -> {}", result.error());
+    RCLCPP_ERROR(rclcpp::get_logger("feetech"), "sync_read failed: %s", result.error().c_str());
     return hardware_interface::return_type::ERROR;
   }
   ranges::for_each(data | ranges::views::enumerate, [&](const auto& values) {
@@ -252,8 +253,10 @@ hardware_interface::return_type FeetechHardwareInterface::write(const rclcpp::Ti
 }
 
 CallbackReturn FeetechHardwareInterface::on_activate(const rclcpp_lifecycle::State& /* previous_state */) {
-  // Initial read
-  read(rclcpp::Time{}, rclcpp::Duration::from_seconds(0));
+  auto read_result = read(rclcpp::Time{}, rclcpp::Duration::from_seconds(0));
+  if (read_result != hardware_interface::return_type::OK) {
+    RCLCPP_ERROR(rclcpp::get_logger("feetech"), "on_activate: initial read failed");
+  }
 
   // If requested, set offsets so that current position becomes zero
   if (auto_zero_on_activate_) {
