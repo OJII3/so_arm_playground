@@ -66,23 +66,11 @@ nix run github:wentasah/ros2nix -- \
 
 `podman` は nix devShell (`nix develop`) に含まれている。
 
-### macOS 初回セットアップ
+### 初回セットアップ
 
 ```bash
-# シミュレーションのみ (USB 不要)
-./podman/setup.sh
-
-# 実機制御: USB パススルー付き (QEMU プロバイダーを使用)
-# vendor/product ID は system_profiler SPUSBDataType で確認
-./podman/setup.sh --usb vendor=1a86,product=7523   # CH340 の例
+./podman/setup.sh    # podman machine を初期化・起動
 ```
-
-よく使われる USB-Serial アダプタの ID:
-| アダプタ | vendor | product |
-| --- | --- | --- |
-| CH340/CH341 | 1a86 | 7523 |
-| CP2102 | 10c4 | ea60 |
-| FTDI FT232 | 0403 | 6001 |
 
 ### コンテナ起動
 
@@ -92,11 +80,22 @@ nix run github:wentasah/ros2nix -- \
 REBUILD=1 ./podman/run.sh        # イメージを強制リビルド
 ```
 
-- 実機シリアルは `USB_PORT`(default `/dev/ttyACM0`)が検出されれば `--device` で渡す。
-  macOS では podman machine 内のデバイスを自動検出する。
+### macOS で実機制御 (socat ブリッジ)
+
+macOS の podman machine (applehv) は USB パススルーに非対応のため、
+socat で Mac 上のシリアルポートを TCP に変換し、コンテナ内で仮想シリアルに戻す。
+
+```bash
+# ターミナル 1: シリアルブリッジを起動
+./podman/serial-bridge.sh                              # 自動検出
+./podman/serial-bridge.sh /dev/tty.usbmodemXXXX        # 明示指定
+
+# ターミナル 2: コンテナ起動 (ブリッジを検出して /dev/ttyACM0 を自動作成)
+./podman/run.sh
+```
+
 - rviz/MoveIt GUI は X11 forwarding (`DISPLAY` と `/tmp/.X11-unix`)。事前に `xhost +local:` が必要な場合あり。
-- **macOS の USB パススルー**: QEMU プロバイダーの `--usb` フラグで VM にデバイスを渡す。
-  `setup.sh` で設定済みなら `run.sh` が自動検出する。
+- Linux ホストではブリッジ不要 — `--device` で直接マウントされる。
 
 ## 代表的なコマンド
 

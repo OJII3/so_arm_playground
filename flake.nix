@@ -51,6 +51,7 @@
           commonPackages = [
             pkgs.git
             pkgs.podman
+            pkgs.socat
             pkgs.uv
             uloop
           ];

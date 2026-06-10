@@ -1,17 +1,14 @@
 # SO-101 ROS 2 (Jazzy) コンテナ.
 # nix-ros-overlay が使えない環境 (macOS の podman machine 等) や、
 # 手早く実機/シミュレーションを動かしたいときの退避路.
-#
-# 注意: macOS の `podman machine` (Linux VM) はホスト USB を直接渡せないため、
-# このコンテナでの実機制御は Linux ホスト上で実行すること.
 FROM ros:jazzy-ros-base
 
 SHELL ["/bin/bash", "-c"]
 
-# rosdep キーに無い/明示しておきたいシステム依存.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libserial-dev \
       python3-colcon-common-extensions \
+      socat \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /ros2_ws
