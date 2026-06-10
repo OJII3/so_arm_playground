@@ -32,6 +32,8 @@ pkgs.mkShell {
           ament-lint-common
           controller-manager
           fmt
+          joint-state-broadcaster
+          joint-trajectory-controller
           hardware-interface
           joint-state-publisher-gui
           libserial-dev
