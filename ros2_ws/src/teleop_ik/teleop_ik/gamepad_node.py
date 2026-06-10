@@ -6,6 +6,11 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool, Float64
 
+# PS3 DualShock 3 default mapping (Linux kernel driver)
+# Axes: 0=LX, 1=LY, 2=RX, 3=RY
+# Buttons: 0=Cross, 1=Circle, 2=Triangle, 3=Square,
+#          4=L1, 5=R1, 6=L2, 7=R2, 8=Select, 9=Start
+
 
 class GamepadTeleopNode(Node):
     def __init__(self) -> None:
@@ -14,16 +19,13 @@ class GamepadTeleopNode(Node):
         self.declare_parameter("publish_rate", 50.0)
         self.declare_parameter("linear_speed", 0.05)
         self.declare_parameter("vertical_speed", 0.05)
-        self.declare_parameter("deadzone", 0.1)
-        # Axis indices (Xbox-style default)
+        self.declare_parameter("deadzone", 0.15)
         self.declare_parameter("axis_x", 1)  # left stick Y → forward/back
         self.declare_parameter("axis_y", 0)  # left stick X → left/right
-        self.declare_parameter("axis_z", 4)  # right stick Y → up/down
-        # Trigger axes for gripper (released=+1, pressed=-1)
-        self.declare_parameter("axis_gripper_open", 5)  # RT
-        self.declare_parameter("axis_gripper_close", 2)  # LT
-        # Button indices
-        self.declare_parameter("button_toggle_active", 0)  # A
+        self.declare_parameter("axis_z", 3)  # right stick Y → up/down
+        self.declare_parameter("button_gripper_open", 5)   # R1
+        self.declare_parameter("button_gripper_close", 4)  # L1
+        self.declare_parameter("button_toggle_active", 0)  # Cross
 
         self._linear_speed = (
             self.get_parameter("linear_speed").get_parameter_value().double_value
@@ -38,11 +40,11 @@ class GamepadTeleopNode(Node):
         self._axis_x = self.get_parameter("axis_x").get_parameter_value().integer_value
         self._axis_y = self.get_parameter("axis_y").get_parameter_value().integer_value
         self._axis_z = self.get_parameter("axis_z").get_parameter_value().integer_value
-        self._axis_gripper_open = (
-            self.get_parameter("axis_gripper_open").get_parameter_value().integer_value
+        self._btn_gripper_open = (
+            self.get_parameter("button_gripper_open").get_parameter_value().integer_value
         )
-        self._axis_gripper_close = (
-            self.get_parameter("axis_gripper_close").get_parameter_value().integer_value
+        self._btn_gripper_close = (
+            self.get_parameter("button_gripper_close").get_parameter_value().integer_value
         )
         self._btn_toggle = (
             self.get_parameter("button_toggle_active").get_parameter_value().integer_value
@@ -57,21 +59,20 @@ class GamepadTeleopNode(Node):
         self._target_x = 0.0
         self._target_y = 0.0
         self._target_z = 0.0
-        self._gripper_value = 0.0
+        self._gripper_value = 0.5
+        self._joy_received = False
         self._latest_joy: Joy | None = None
 
-        # Subscribers
         self.create_subscription(Joy, "/joy", self._on_joy, 10)
 
-        # Publishers
         self._pose_pub = self.create_publisher(PoseStamped, "/teleop/target_pose", 10)
         self._active_pub = self.create_publisher(Bool, "/teleop/active", 10)
         self._gripper_pub = self.create_publisher(Float64, "/teleop/gripper", 10)
 
         self.create_timer(self._dt, self._timer_callback)
         self.get_logger().info(
-            f"GamepadTeleopNode ready (rate={rate}Hz, "
-            f"linear_speed={self._linear_speed}, vertical_speed={self._vertical_speed})"
+            f"GamepadTeleopNode ready (rate={rate}Hz). "
+            f"Press Cross to activate session."
         )
 
     def _apply_deadzone(self, value: float) -> float:
@@ -90,6 +91,11 @@ class GamepadTeleopNode(Node):
         return False
 
     def _on_joy(self, msg: Joy) -> None:
+        if not self._joy_received:
+            self._joy_received = True
+            self.get_logger().info(
+                f"Joy message received (axes={len(msg.axes)}, buttons={len(msg.buttons)})"
+            )
         self._latest_joy = msg
 
     def _timer_callback(self) -> None:
@@ -106,7 +112,7 @@ class GamepadTeleopNode(Node):
                 self._target_x = 0.0
                 self._target_y = 0.0
                 self._target_z = 0.0
-                self._gripper_value = 0.0
+                self._gripper_value = 0.5
                 self.get_logger().info("Session activated")
             else:
                 self.get_logger().info("Session deactivated")
@@ -124,11 +130,12 @@ class GamepadTeleopNode(Node):
         self._target_y += vy * self._linear_speed * self._dt
         self._target_z += vz * self._vertical_speed * self._dt
 
-        # Gripper: trigger axes go from +1 (released) to -1 (pressed)
-        # Normalize to 0 (released) .. 1 (pressed)
-        open_val = (1.0 - self._safe_axis(joy, self._axis_gripper_open)) / 2.0
-        close_val = (1.0 - self._safe_axis(joy, self._axis_gripper_close)) / 2.0
-        self._gripper_value = max(0.0, min(1.0, open_val - close_val + 0.5))
+        # Gripper: R1 opens, L1 closes (incremental while held)
+        gripper_speed = 2.0  # full travel per second
+        if self._safe_button(joy, self._btn_gripper_open):
+            self._gripper_value = min(1.0, self._gripper_value + gripper_speed * self._dt)
+        if self._safe_button(joy, self._btn_gripper_close):
+            self._gripper_value = max(0.0, self._gripper_value - gripper_speed * self._dt)
 
         # Publish target pose (ROS frame, relative to session start)
         pose = PoseStamped()
@@ -140,7 +147,6 @@ class GamepadTeleopNode(Node):
         pose.pose.orientation.w = 1.0
         self._pose_pub.publish(pose)
 
-        # Publish gripper
         self._gripper_pub.publish(Float64(data=self._gripper_value))
 
 

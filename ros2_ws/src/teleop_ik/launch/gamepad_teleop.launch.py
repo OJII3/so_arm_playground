@@ -34,7 +34,7 @@ def generate_launch_description():
 
     joy_dev_arg = DeclareLaunchArgument(
         "joy_dev",
-        default_value="/dev/input/js0",
+        default_value="/dev/input/js1",
         description="Joystick device path",
     )
 
@@ -44,9 +44,8 @@ def generate_launch_description():
         name="joy_node",
         output="screen",
         parameters=[{
-            "device_id": 0,
-            "deadzone": 0.1,
-            "autorepeat_rate": 50.0,
+            "deadzone": 0.05,
+            "autorepeat_rate": 20.0,
             "dev": LaunchConfiguration("joy_dev"),
         }],
     )
