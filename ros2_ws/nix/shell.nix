@@ -58,6 +58,8 @@ pkgs.mkShell {
           trajectory-msgs
           urdf
           xacro
+
+          joy
         ]
       )
       ++ builtins.attrValues extraPkgs
