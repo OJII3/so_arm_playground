@@ -42,22 +42,29 @@ serial_path, baud, port = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 
 def open_serial(path, baud_rate):
     fd = os.open(path, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
-    attrs = termios.tcgetattr(fd)
-    # cfmakeraw equivalent
-    attrs[0] &= ~(termios.IGNBRK | termios.BRKINT | termios.PARMRK |
-                   termios.ISTRIP | termios.INLCR | termios.IGNCR |
-                   termios.ICRNL | termios.IXON)
-    attrs[1] &= ~termios.OPOST
-    attrs[3] &= ~(termios.ECHO | termios.ECHONL | termios.ICANON |
-                   termios.ISIG | termios.IEXTEN)
-    attrs[2] &= ~(termios.CSIZE | termios.PARENB)
-    attrs[2] |= termios.CS8
-    termios.tcsetattr(fd, termios.TCSANOW, attrs)
+    try:
+        attrs = termios.tcgetattr(fd)
+        attrs[0] &= ~(termios.IGNBRK | termios.BRKINT | termios.PARMRK |
+                       termios.ISTRIP | termios.INLCR | termios.IGNCR |
+                       termios.ICRNL | termios.IXON)
+        attrs[1] &= ~termios.OPOST
+        attrs[3] &= ~(termios.ECHO | termios.ECHONL | termios.ICANON |
+                       termios.ISIG | termios.IEXTEN)
+        attrs[2] &= ~(termios.CSIZE | termios.PARENB)
+        attrs[2] |= termios.CS8
+        termios.tcsetattr(fd, termios.TCSANOW, attrs)
+    except termios.error:
+        pass  # IOSSIOSPEED で設定するので tcsetattr 失敗は許容
     # macOS: IOSSIOSPEED ioctl でカスタムボーレートを設定
-    IOSSIOSPEED = 0x80045402
-    speed = ctypes.c_uint(baud_rate)
+    # _IOW('T', 2, speed_t) — speed_t は unsigned long (arm64: 8bytes, x86: 4bytes)
+    speed_size = ctypes.sizeof(ctypes.c_ulong)
+    IOSSIOSPEED = 0x80000000 | (speed_size << 16) | (0x54 << 8) | 2
+    speed = ctypes.c_ulong(baud_rate)
     fcntl.ioctl(fd, IOSSIOSPEED, speed)
-    termios.tcflush(fd, termios.TCIOFLUSH)
+    try:
+        termios.tcflush(fd, termios.TCIOFLUSH)
+    except termios.error:
+        pass
     os.set_blocking(fd, True)
     return fd
 
