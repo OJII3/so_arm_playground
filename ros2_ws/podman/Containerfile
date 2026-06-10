@@ -23,7 +23,8 @@ RUN apt-get update \
  && rosdep install --from-paths src --ignore-src -r -y \
  && rm -rf /var/lib/apt/lists/*
 RUN source /opt/ros/jazzy/setup.bash \
- && colcon build --symlink-install
+ && colcon build --symlink-install --parallel-workers 1 \
+      --executor sequential
 
 # シェル起動時に自動 source.
 RUN echo "source /opt/ros/jazzy/setup.bash" >> /root/.bashrc \

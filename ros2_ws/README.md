@@ -64,18 +64,39 @@ nix run github:wentasah/ros2nix -- \
 
 ## 起動方法 B: podman (macOS / 退避路)
 
-`podman` はシステムに用意しておくこと（nix では入れていない）。macOS は初回に
-`podman machine init && podman machine start` が必要。
+`podman` は nix devShell (`nix develop`) に含まれている。
+
+### macOS 初回セットアップ
+
+```bash
+# シミュレーションのみ (USB 不要)
+./podman/setup.sh
+
+# 実機制御: USB パススルー付き (QEMU プロバイダーを使用)
+# vendor/product ID は system_profiler SPUSBDataType で確認
+./podman/setup.sh --usb vendor=1a86,product=7523   # CH340 の例
+```
+
+よく使われる USB-Serial アダプタの ID:
+| アダプタ | vendor | product |
+| --- | --- | --- |
+| CH340/CH341 | 1a86 | 7523 |
+| CP2102 | 10c4 | ea60 |
+| FTDI FT232 | 0403 | 6001 |
+
+### コンテナ起動
 
 ```bash
 ./podman/run.sh                  # イメージを build して対話シェル
 ./podman/run.sh ros2 launch lerobot_description so101_display.launch.py
+REBUILD=1 ./podman/run.sh        # イメージを強制リビルド
 ```
 
-- 実機シリアルは `USB_PORT`(default `/dev/ttyACM0`)が存在すれば `--device` で渡す。
+- 実機シリアルは `USB_PORT`(default `/dev/ttyACM0`)が検出されれば `--device` で渡す。
+  macOS では podman machine 内のデバイスを自動検出する。
 - rviz/MoveIt GUI は X11 forwarding (`DISPLAY` と `/tmp/.X11-unix`)。事前に `xhost +local:` が必要な場合あり。
-- **macOS の制約**: `podman machine` (Linux VM) はホスト USB を直接渡せないため、Mac 単体では
-  実機制御不可。実機は Linux ホスト (PC / Raspberry Pi) で実行すること。Mac はシミュレーション・開発まで。
+- **macOS の USB パススルー**: QEMU プロバイダーの `--usb` フラグで VM にデバイスを渡す。
+  `setup.sh` で設定済みなら `run.sh` が自動検出する。
 
 ## 代表的なコマンド
 
