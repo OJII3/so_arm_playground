@@ -1,0 +1,9 @@
+teleop_ik_node:
+  ros__parameters:
+    # urdf_path is set via launch argument
+    end_effector_frame: "gripper"
+    position_scale: 1.0
+    ik_damping: 1.0e-6
+    ik_max_iterations: 100
+    ik_tolerance: 1.0e-4
+    trajectory_time_from_start: 0.1
