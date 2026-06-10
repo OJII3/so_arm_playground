@@ -27,8 +27,6 @@ run_args=(--rm -it --network host)
 
 # --- USB デバイスの接続 ---
 if [[ "$(uname)" == "Darwin" ]]; then
-  # macOS: socat TCP ブリッジ経由で仮想シリアルポートを作成.
-  # 事前に別ターミナルで ./podman/serial-bridge.sh を起動しておく.
   if nc -z localhost "$BRIDGE_PORT" 2>/dev/null; then
     echo ">>> serial bridge detected (tcp://localhost:$BRIDGE_PORT -> $USB_PORT)"
     run_args+=(
@@ -41,7 +39,6 @@ if [[ "$(uname)" == "Darwin" ]]; then
     echo "   ./podman/serial-bridge.sh"
   fi
 else
-  # Linux: ホストデバイスを直接マウント.
   if [[ -e "$USB_PORT" ]]; then
     run_args+=(--device "$USB_PORT")
     echo ">>> device: $USB_PORT"
@@ -58,18 +55,31 @@ fi
 # src をマウントして編集を即反映 (再ビルドは colcon build).
 run_args+=(-v "$WS_ROOT/src:/ros2_ws/src:Z")
 
-# macOS socat ブリッジ: コンテナ起動時に仮想シリアルポートを作成してからコマンドを実行.
-if [[ "$(uname)" == "Darwin" ]] && [[ -n "${SERIAL_BRIDGE_PORT:-}" || -v run_args ]] && nc -z localhost "$BRIDGE_PORT" 2>/dev/null; then
-  bridge_cmd="socat PTY,link=$USB_PORT,raw,echo=0,waitslave TCP:host.containers.internal:$BRIDGE_PORT &"
-  bridge_cmd+=" sleep 1 && echo '>>> virtual serial: $USB_PORT ready'"
+# macOS socat ブリッジ: コンテナ起動時に仮想シリアルポートを維持するデーモンを起動.
+if [[ "$(uname)" == "Darwin" ]] && nc -z localhost "$BRIDGE_PORT" 2>/dev/null; then
+  # socat を自動再起動するラッパー (PTY が消えないようにする)
+  read -r -d '' bridge_script <<'INNER' || true
+#!/bin/bash
+USB_PORT="${USB_PORT:-/dev/ttyACM0}"
+BRIDGE_PORT="${SERIAL_BRIDGE_PORT:-5555}"
+while true; do
+  socat PTY,link="$USB_PORT",raw,echo=0 TCP:host.containers.internal:"$BRIDGE_PORT" 2>/dev/null
+  sleep 0.5
+done
+INNER
 
   if [[ $# -eq 0 ]]; then
-    # 対話シェル: bashrc の前にブリッジを起動.
     exec podman run "${run_args[@]}" "$IMAGE" \
-      bash -c "$bridge_cmd && exec bash"
+      bash -c "bash -c '$bridge_script' &
+               sleep 1
+               echo '>>> virtual serial: $USB_PORT ready'
+               exec bash"
   else
     exec podman run "${run_args[@]}" "$IMAGE" \
-      bash -c "$bridge_cmd && $*"
+      bash -c "bash -c '$bridge_script' &
+               sleep 1
+               echo '>>> virtual serial: $USB_PORT ready'
+               $*"
   fi
 else
   exec podman run "${run_args[@]}" "$IMAGE" "$@"
