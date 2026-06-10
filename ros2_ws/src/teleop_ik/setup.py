@@ -24,6 +24,7 @@ setup(
     entry_points={
         "console_scripts": [
             "ik_node = teleop_ik.ik_node:main",
+            "gamepad_node = teleop_ik.gamepad_node:main",
         ],
     },
 )
