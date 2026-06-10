@@ -89,6 +89,11 @@ Result SerialPort::configure(const LibSerial::BaudRate baud_rate) {
 
   try {
     port_.SetBaudRate(baud_rate);
+    port_.SetCharacterSize(LibSerial::CharacterSize::CHAR_SIZE_8);
+    port_.SetStopBits(LibSerial::StopBits::STOP_BITS_1);
+    port_.SetParity(LibSerial::Parity::PARITY_NONE);
+    port_.SetFlowControl(LibSerial::FlowControl::FLOW_CONTROL_NONE);
+    port_.FlushIOBuffers();
   } catch (const std::runtime_error& e) {
     return tl::make_unexpected(fmt::format("Configuring the serial port failed: [{}]", e.what()));
   }
