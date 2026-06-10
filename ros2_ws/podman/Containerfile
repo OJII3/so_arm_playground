@@ -9,7 +9,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libserial-dev \
       python3-colcon-common-extensions \
       socat \
+      unzip \
  && rm -rf /var/lib/apt/lists/*
+
+# zenoh-bridge-ros2dds: コンテナ内 DDS と LAN 上の ROS 2 を Zenoh 経由で接続.
+ARG ZENOH_BRIDGE_VERSION=1.5.0
+RUN ARCH=$(dpkg --print-architecture) \
+ && case "$ARCH" in \
+      arm64) ZENOH_ARCH="aarch64-unknown-linux-gnu" ;; \
+      amd64) ZENOH_ARCH="x86_64-unknown-linux-gnu" ;; \
+      *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
+    esac \
+ && curl -sSL "https://github.com/eclipse-zenoh/zenoh-plugin-ros2dds/releases/download/${ZENOH_BRIDGE_VERSION}/zenoh-plugin-ros2dds-${ZENOH_BRIDGE_VERSION}-${ZENOH_ARCH}-standalone.zip" \
+      -o /tmp/zenoh.zip \
+ && unzip -j /tmp/zenoh.zip "zenoh-bridge-ros2dds" -d /usr/local/bin/ \
+ && chmod +x /usr/local/bin/zenoh-bridge-ros2dds \
+ && rm -f /tmp/zenoh.zip
 
 WORKDIR /ros2_ws
 COPY src ./src
