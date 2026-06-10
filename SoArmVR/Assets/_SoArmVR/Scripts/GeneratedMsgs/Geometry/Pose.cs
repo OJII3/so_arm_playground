@@ -4,56 +4,57 @@
 // </auto-generated>
 using Rclsharp.Cdr;
 
-namespace Rclsharp.Msgs.Geometry;
-
-/// <summary>
-/// geometry_msgs/msg/Pose の C# 表現 (生成コード)。
-/// </summary>
-public struct Pose
+namespace Rclsharp.Msgs.Geometry
 {
-    public const string RosTypeName = "geometry_msgs/msg/Pose";
-    public const string DdsTypeName = "geometry_msgs::msg::dds_::Pose_";
-
-    public Point Position;
-    public Quaternion Orientation;
-
-    public Pose(Point position, Quaternion orientation)
+    /// <summary>
+    /// geometry_msgs/msg/Pose の C# 表現 (生成コード)。
+    /// </summary>
+    public struct Pose
     {
-        Position = position;
-        Orientation = orientation;
+        public const string RosTypeName = "geometry_msgs/msg/Pose";
+        public const string DdsTypeName = "geometry_msgs::msg::dds_::Pose_";
+
+        public Point Position;
+        public Quaternion Orientation;
+
+        public Pose(Point position, Quaternion orientation)
+        {
+            Position = position;
+            Orientation = orientation;
+        }
+
+        public override string ToString() => $"Pose(position={Position}, orientation={Orientation})";
     }
 
-    public override string ToString() => $"Pose(position={Position}, orientation={Orientation})";
-}
-
-public sealed class PoseSerializer : ICdrSerializer<Pose>
-{
-    public static readonly PoseSerializer Instance = new();
-
-    public bool IsKeyed => false;
-
-    public int GetSerializedSize(in Pose value)
+    public sealed class PoseSerializer : ICdrSerializer<Pose>
     {
-        int total = 0;
-        total += PointSerializer.Instance.GetSerializedSize(in value.Position);
-        total += QuaternionSerializer.Instance.GetSerializedSize(in value.Orientation);
-        return total;
-    }
+        public static readonly PoseSerializer Instance = new();
 
-    public void Serialize(ref CdrWriter writer, in Pose value)
-    {
-        PointSerializer.Instance.Serialize(ref writer, in value.Position);
-        QuaternionSerializer.Instance.Serialize(ref writer, in value.Orientation);
-    }
+        public bool IsKeyed => false;
 
-    public void Deserialize(ref CdrReader reader, out Pose value)
-    {
-        PointSerializer.Instance.Deserialize(ref reader, out Point position);
-        QuaternionSerializer.Instance.Deserialize(ref reader, out Quaternion orientation);
-        value = new Pose(position, orientation);
-    }
+        public int GetSerializedSize(in Pose value)
+        {
+            int total = 0;
+            total += PointSerializer.Instance.GetSerializedSize(in value.Position);
+            total += QuaternionSerializer.Instance.GetSerializedSize(in value.Orientation);
+            return total;
+        }
 
-    public void SerializeKey(ref CdrWriter writer, in Pose value)
-    {
+        public void Serialize(ref CdrWriter writer, in Pose value)
+        {
+            PointSerializer.Instance.Serialize(ref writer, in value.Position);
+            QuaternionSerializer.Instance.Serialize(ref writer, in value.Orientation);
+        }
+
+        public void Deserialize(ref CdrReader reader, out Pose value)
+        {
+            PointSerializer.Instance.Deserialize(ref reader, out Point position);
+            QuaternionSerializer.Instance.Deserialize(ref reader, out Quaternion orientation);
+            value = new Pose(position, orientation);
+        }
+
+        public void SerializeKey(ref CdrWriter writer, in Pose value)
+        {
+        }
     }
 }

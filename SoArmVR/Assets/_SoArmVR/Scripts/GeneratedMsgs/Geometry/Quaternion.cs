@@ -4,66 +4,67 @@
 // </auto-generated>
 using Rclsharp.Cdr;
 
-namespace Rclsharp.Msgs.Geometry;
-
-/// <summary>
-/// geometry_msgs/msg/Quaternion の C# 表現 (生成コード)。
-/// </summary>
-public struct Quaternion
+namespace Rclsharp.Msgs.Geometry
 {
-    public const string RosTypeName = "geometry_msgs/msg/Quaternion";
-    public const string DdsTypeName = "geometry_msgs::msg::dds_::Quaternion_";
-
-    public double X;
-    public double Y;
-    public double Z;
-    public double W;
-
-    public Quaternion(double x, double y, double z, double w)
+    /// <summary>
+    /// geometry_msgs/msg/Quaternion の C# 表現 (生成コード)。
+    /// </summary>
+    public struct Quaternion
     {
-        X = x;
-        Y = y;
-        Z = z;
-        W = w;
+        public const string RosTypeName = "geometry_msgs/msg/Quaternion";
+        public const string DdsTypeName = "geometry_msgs::msg::dds_::Quaternion_";
+
+        public double X;
+        public double Y;
+        public double Z;
+        public double W;
+
+        public Quaternion(double x, double y, double z, double w)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+            W = w;
+        }
+
+        public override string ToString() => $"Quaternion(x={X}, y={Y}, z={Z}, w={W})";
     }
 
-    public override string ToString() => $"Quaternion(x={X}, y={Y}, z={Z}, w={W})";
-}
-
-public sealed class QuaternionSerializer : ICdrSerializer<Quaternion>
-{
-    public static readonly QuaternionSerializer Instance = new();
-
-    public bool IsKeyed => false;
-
-    public int GetSerializedSize(in Quaternion value)
+    public sealed class QuaternionSerializer : ICdrSerializer<Quaternion>
     {
-        int total = 0;
-        total += 8;
-        total += 8;
-        total += 8;
-        total += 8;
-        return total;
-    }
+        public static readonly QuaternionSerializer Instance = new();
 
-    public void Serialize(ref CdrWriter writer, in Quaternion value)
-    {
-        writer.WriteDouble(value.X);
-        writer.WriteDouble(value.Y);
-        writer.WriteDouble(value.Z);
-        writer.WriteDouble(value.W);
-    }
+        public bool IsKeyed => false;
 
-    public void Deserialize(ref CdrReader reader, out Quaternion value)
-    {
-        double x = reader.ReadDouble();
-        double y = reader.ReadDouble();
-        double z = reader.ReadDouble();
-        double w = reader.ReadDouble();
-        value = new Quaternion(x, y, z, w);
-    }
+        public int GetSerializedSize(in Quaternion value)
+        {
+            int total = 0;
+            total += 8;
+            total += 8;
+            total += 8;
+            total += 8;
+            return total;
+        }
 
-    public void SerializeKey(ref CdrWriter writer, in Quaternion value)
-    {
+        public void Serialize(ref CdrWriter writer, in Quaternion value)
+        {
+            writer.WriteDouble(value.X);
+            writer.WriteDouble(value.Y);
+            writer.WriteDouble(value.Z);
+            writer.WriteDouble(value.W);
+        }
+
+        public void Deserialize(ref CdrReader reader, out Quaternion value)
+        {
+            double x = reader.ReadDouble();
+            double y = reader.ReadDouble();
+            double z = reader.ReadDouble();
+            double w = reader.ReadDouble();
+            value = new Quaternion(x, y, z, w);
+        }
+
+        public void SerializeKey(ref CdrWriter writer, in Quaternion value)
+        {
+        }
     }
 }
