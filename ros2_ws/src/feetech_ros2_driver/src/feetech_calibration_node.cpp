@@ -1,9 +1,9 @@
 // Calibration node: disables torque, reads positions, publishes joint_states,
-// captures home by DualSense button press, tracks limits, and saves calibration to JSON.
+// captures home by keyboard input, tracks limits, and saves calibration to JSON.
 //
-// Button mapping (DualSense via /dev/input/js*):
-//   ○ (Circle, button index 1)  … confirm: capture home / confirm save
-//   × (Cross,  button index 0)  … cancel:  cancel save, continue range tracking
+// Key mapping:
+//   Enter  … confirm: capture home / confirm save
+//   Esc    … cancel:  cancel save, continue range tracking
 
 #include <algorithm>
 #include <cmath>
@@ -22,16 +22,11 @@
 #include <string>
 #include <vector>
 
-#include <errno.h>
-#include <fcntl.h>
-#include <linux/joystick.h>
+#include <termios.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 using namespace std::chrono_literals;
-
-// DualSense button indices (Linux joydev driver)
-static constexpr uint8_t DUALSENSE_BTN_CROSS  = 0;  // × (バツ) … キャンセル
-static constexpr uint8_t DUALSENSE_BTN_CIRCLE = 1;  // ○ (マル) … 確認
 
 enum class Phase { WAIT_HOME, TRACK_LIMITS, CONFIRM_SAVE, DONE };
 
@@ -39,7 +34,6 @@ class FeetechCalibrationNode : public rclcpp::Node {
  public:
   FeetechCalibrationNode() : Node("feetech_calibration") {
     usb_port_  = this->declare_parameter<std::string>("usb_port",  "/dev/ttyACM0");
-    joy_device_ = this->declare_parameter<std::string>("joy_device", "/dev/input/js0");
     auto ids64  = this->declare_parameter<std::vector<int64_t>>("ids", {1, 2, 3, 4, 5, 6});
     ids_.assign(ids64.begin(), ids64.end());
     rate_hz_   = this->declare_parameter<int>("rate_hz", 20);
@@ -80,19 +74,19 @@ class FeetechCalibrationNode : public rclcpp::Node {
     max_ticks_.assign(ids_.size(), std::numeric_limits<int>::min());
     have_tick_sample_.assign(ids_.size(), false);
 
-    // Open joystick device (non-blocking)
-    joy_fd_ = open(joy_device_.c_str(), O_RDONLY | O_NONBLOCK);
-    if (joy_fd_ < 0) {
-      RCLCPP_ERROR(get_logger(), "Failed to open joystick device %s: %s",
-                   joy_device_.c_str(), strerror(errno));
-      throw std::runtime_error("failed to open joystick device");
-    }
-    RCLCPP_INFO(get_logger(), "Opened joystick device: %s", joy_device_.c_str());
+    // Set stdin to raw non-blocking mode
+    tcgetattr(STDIN_FILENO, &orig_termios_);
+    struct termios raw = orig_termios_;
+    raw.c_lflag &= ~static_cast<tcflag_t>(ICANON | ECHO);
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
     RCLCPP_INFO(get_logger(), "Calibration started.");
-    RCLCPP_INFO(get_logger(), "Phase 1: Move arm to desired HOME pose by hand, then press ○ (Circle) to capture homing_offset.");
-    RCLCPP_INFO(get_logger(), "Phase 2: Sweep joints across their allowed range. Press ○ (Circle) to open save confirmation.");
-    RCLCPP_INFO(get_logger(), "In save confirmation: ○ (Circle) to save and exit, × (Cross) to cancel and continue calibration.");
+    RCLCPP_INFO(get_logger(), "Phase 1: Move arm to desired HOME pose by hand, then press [Enter] to capture homing_offset.");
+    RCLCPP_INFO(get_logger(), "Phase 2: Sweep joints across their allowed range. Press [Enter] to open save confirmation.");
+    RCLCPP_INFO(get_logger(), "In save confirmation: [Enter] to save and exit, [Esc] to cancel and continue calibration.");
 
     phase_ = Phase::WAIT_HOME;
 
@@ -101,27 +95,20 @@ class FeetechCalibrationNode : public rclcpp::Node {
   }
 
   ~FeetechCalibrationNode() {
-    if (joy_fd_ >= 0) {
-      close(joy_fd_);
-    }
+    tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios_);
   }
 
  private:
-  // Read pending joystick events (non-blocking). Returns true on press for each button.
-  void poll_joystick(bool &circle_pressed, bool &cross_pressed) {
-    circle_pressed = false;
-    cross_pressed  = false;
-    if (joy_fd_ < 0) return;
+  void poll_keyboard(bool &enter_pressed, bool &esc_pressed) {
+    enter_pressed = false;
+    esc_pressed   = false;
 
-    struct js_event event;
-    while (read(joy_fd_, &event, sizeof(event)) > 0) {
-      // Mask off JS_EVENT_INIT to handle initial state events as well
-      if ((event.type & ~JS_EVENT_INIT) == JS_EVENT_BUTTON && event.value == 1) {
-        if (event.number == DUALSENSE_BTN_CIRCLE) {
-          circle_pressed = true;
-        } else if (event.number == DUALSENSE_BTN_CROSS) {
-          cross_pressed = true;
-        }
+    char ch;
+    while (::read(STDIN_FILENO, &ch, 1) > 0) {
+      if (ch == '\n' || ch == '\r') {
+        enter_pressed = true;
+      } else if (ch == 27) {  // Esc
+        esc_pressed = true;
       }
     }
   }
@@ -164,36 +151,35 @@ class FeetechCalibrationNode : public rclcpp::Node {
       }
     }
 
-    bool circle_pressed = false;
-    bool cross_pressed  = false;
-    poll_joystick(circle_pressed, cross_pressed);
+    bool enter_pressed = false;
+    bool esc_pressed   = false;
+    poll_keyboard(enter_pressed, esc_pressed);
 
-    if (circle_pressed && cross_pressed) {
-      RCLCPP_WARN(get_logger(), "○ and × pressed simultaneously. Ignoring.");
+    if (enter_pressed && esc_pressed) {
+      RCLCPP_WARN(get_logger(), "Enter and Esc pressed simultaneously. Ignoring.");
       return;
     }
 
-    // ○ (Circle) = confirm
-    if (phase_ == Phase::WAIT_HOME && circle_pressed) {
+    if (phase_ == Phase::WAIT_HOME && enter_pressed) {
       capture_home_pose();
       return;
     }
 
-    if (phase_ == Phase::TRACK_LIMITS && circle_pressed) {
+    if (phase_ == Phase::TRACK_LIMITS && enter_pressed) {
       phase_ = Phase::CONFIRM_SAVE;
-      RCLCPP_INFO(get_logger(), "Save confirmation opened. Press ○ (Circle) to save and exit, × (Cross) to cancel.");
+      RCLCPP_INFO(get_logger(), "Save confirmation opened. Press [Enter] to save and exit, [Esc] to cancel.");
       return;
     }
 
     if (phase_ == Phase::CONFIRM_SAVE) {
-      if (circle_pressed) {
+      if (enter_pressed) {
         if (save_json()) {
           phase_ = Phase::DONE;
           rclcpp::shutdown();
         }
         return;
       }
-      if (cross_pressed) {
+      if (esc_pressed) {
         phase_ = Phase::TRACK_LIMITS;
         RCLCPP_INFO(get_logger(), "Save canceled. Continuing range tracking.");
         return;
@@ -252,16 +238,16 @@ class FeetechCalibrationNode : public rclcpp::Node {
     homing_captured_ = true;
     phase_ = Phase::TRACK_LIMITS;
     RCLCPP_INFO(get_logger(), "Captured homing_offset (ticks).");
-    RCLCPP_INFO(get_logger(), "Now sweep joints across allowed range. Press ○ (Circle) when ready to save.");
+    RCLCPP_INFO(get_logger(), "Now sweep joints across allowed range. Press [Enter] when ready to save.");
   }
 
   std::string usb_port_;
-  std::string joy_device_;
   std::vector<int> ids_;
   int rate_hz_;
   std::string save_path_;
   bool torque_off_;
-  int joy_fd_{-1};
+
+  struct termios orig_termios_;
 
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr publisher_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_srv_;
