@@ -47,6 +47,7 @@ class SerialPort {
     return check_port().and_then([&]() -> Result {
       try {
         port_.Write(std::string(buffer.begin(), buffer.end()));
+        port_.DrainWriteBuffer();
       } catch (const std::runtime_error& e) {
         return tl::make_unexpected(fmt::format("SerialPort::write [{}]", e.what()));
       }
