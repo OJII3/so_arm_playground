@@ -35,12 +35,10 @@
         );
 
       mkUloop = pkgs: pkgs.callPackage ./SoArmVR/nix/uloop.nix { };
-      mkZenohBridge = pkgs: pkgs.callPackage ./ros2_ws/nix/zenoh-bridge-ros2dds.nix { };
     in
     {
       packages = forAllSystems (pkgs: {
         uloop = mkUloop pkgs;
-        zenoh-bridge-ros2dds = mkZenohBridge pkgs;
       });
 
       devShells = nixpkgs.lib.genAttrs systems (
@@ -80,7 +78,6 @@
             packages = [
               pkgs.podman
               pkgs.socat
-              (mkZenohBridge pkgs)
             ];
             shellHook = ''
               echo "ros2_ws podman shell"
@@ -107,7 +104,6 @@
               extraPkgs = {
                 libserial-dev = libserial;
               };
-              extraPaths = [ (mkZenohBridge rosPkgs) ];
             };
         }
       );
