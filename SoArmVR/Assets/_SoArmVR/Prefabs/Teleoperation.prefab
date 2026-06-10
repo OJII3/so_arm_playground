@@ -444,11 +444,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 8676189544263092803}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 93c8684e1a6e647b990339bdd33ecc70, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.DebugTeleoperationSink
-  _logEverySample: 0
-  _logEvery: 30
+  m_Script: {fileID: 11500000, guid: 090bcba53d8a04f65b8424522acd5621, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.RosTeleoperationSink
 --- !u!114 &4344990714880174040
 MonoBehaviour:
   m_ObjectHideFlags: 0
