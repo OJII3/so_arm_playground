@@ -72,18 +72,15 @@
             inherit shellHook;
           };
         }
-        # ROS 2 開発シェル (`nix develop .#ros`). nix-ros-overlay は Linux のみ実用なため
-        # darwin では定義しない (その場合は ros2_ws/podman/ を使う).
+        # ROS 2 開発シェル (`nix develop .#ros`).
+        # Linux: nix-ros-overlay でネイティブ ROS 2 環境を構築.
         // pkgs.lib.optionalAttrs isLinux {
           ros =
             let
-              # overlay 自身がテスト/キャッシュ済みの nixpkgs に overlay を適用し
-              # full pkgs (mkShell, colcon, rosPackages 等) を得る.
               rosPkgs = import nix-ros-overlay.inputs.nixpkgs {
                 inherit system;
                 overlays = [ nix-ros-overlay.overlays.default ];
               };
-              # crayzeewulf/LibSerial は nixpkgs に無いため自作 (ros2_ws/nix/libserial.nix).
               libserial = rosPkgs.callPackage ./ros2_ws/nix/libserial.nix { };
             in
             import ./ros2_ws/nix/shell.nix {
@@ -93,6 +90,20 @@
                 libserial-dev = libserial;
               };
             };
+        }
+        # macOS: nix-ros-overlay が使えないため podman + XQuartz で
+        # コンテナ経由の ROS 2 開発環境を提供 (ros2_ws/podman/).
+        // pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+          ros = pkgs.mkShell {
+            packages = [
+              pkgs.podman
+              pkgs.xquartz
+            ];
+            shellHook = ''
+              echo "macOS ROS 2 dev shell (podman + XQuartz)"
+              echo "  コンテナ起動: ./ros2_ws/podman/run.sh"
+            '';
+          };
         }
       );
 
