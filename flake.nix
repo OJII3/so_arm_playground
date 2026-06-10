@@ -72,6 +72,18 @@
             inherit shellHook;
           };
         }
+        # podman + socat シェル (`nix develop .#podman`). macOS で ros2_ws のコンテナ開発に使う.
+        // {
+          podman = pkgs.mkShell {
+            packages = [
+              pkgs.podman
+              pkgs.socat
+            ];
+            shellHook = ''
+              echo "ros2_ws podman shell"
+            '';
+          };
+        }
         # ROS 2 開発シェル (`nix develop .#ros`). nix-ros-overlay は Linux のみ実用なため
         # darwin では定義しない (その場合は ros2_ws/podman/ を使う).
         // pkgs.lib.optionalAttrs isLinux {

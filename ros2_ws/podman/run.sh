@@ -6,31 +6,51 @@
 #   ./podman/run.sh ros2 launch lerobot_description so101_display.launch.py
 #
 # 環境変数:
-#   USB_PORT  実機シリアルポート (default: /dev/ttyACM0). 存在すれば --device で渡す.
-#   IMAGE     イメージ名 (default: so101-ros2:jazzy)
+#   USB_PORT      コンテナ内のシリアルポートパス (default: /dev/ttyACM0)
+#   IMAGE         イメージ名 (default: so101-ros2:jazzy)
+#   REBUILD       "1" にするとイメージを強制リビルド
+#   BRIDGE_PORT   socat ブリッジのポート番号 (default: 5555, macOS のみ)
 set -euo pipefail
 
 IMAGE="${IMAGE:-so101-ros2:jazzy}"
 USB_PORT="${USB_PORT:-/dev/ttyACM0}"
+BRIDGE_PORT="${BRIDGE_PORT:-5555}"
 
-# ros2_ws ルート (このスクリプトの親ディレクトリ).
 WS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if ! podman image exists "$IMAGE"; then
+if [[ "${REBUILD:-}" == "1" ]] || ! podman image exists "$IMAGE"; then
   echo ">>> building image $IMAGE ..."
-  podman build -t "$IMAGE" -f "$WS_ROOT/podman/Containerfile" "$WS_ROOT"
+  podman build --format docker -t "$IMAGE" -f "$WS_ROOT/podman/Containerfile" "$WS_ROOT"
 fi
 
 run_args=(--rm -it --network host)
 
-# 実機シリアルポート (存在する場合のみ).
-if [[ -e "$USB_PORT" ]]; then
-  run_args+=(--device "$USB_PORT")
+# --- USB デバイスの接続 ---
+if [[ "$(uname)" == "Darwin" ]]; then
+  # macOS: socat TCP ブリッジ経由で仮想シリアルポートを作成.
+  # 事前に別ターミナルで ./podman/serial-bridge.sh を起動しておく.
+  if nc -z localhost "$BRIDGE_PORT" 2>/dev/null; then
+    echo ">>> serial bridge detected (tcp://localhost:$BRIDGE_PORT -> $USB_PORT)"
+    run_args+=(
+      -e SERIAL_BRIDGE_PORT="$BRIDGE_PORT"
+      -e USB_PORT="$USB_PORT"
+    )
+  else
+    echo ">>> note: serial bridge が検出されません."
+    echo "   実機制御には別ターミナルで先に実行してください:"
+    echo "   ./podman/serial-bridge.sh"
+  fi
 else
-  echo ">>> note: $USB_PORT が見つかりません (sim のみ / Linux ホストで実行してください)"
+  # Linux: ホストデバイスを直接マウント.
+  if [[ -e "$USB_PORT" ]]; then
+    run_args+=(--device "$USB_PORT")
+    echo ">>> device: $USB_PORT"
+  else
+    echo ">>> note: $USB_PORT が見つかりません."
+  fi
 fi
 
-# rviz/MoveIt GUI 用 X11 forwarding (Linux ホスト前提). 必要なら事前に: xhost +local:
+# rviz/MoveIt GUI 用 X11 forwarding (Linux ホスト前提).
 if [[ -n "${DISPLAY:-}" ]]; then
   run_args+=(-e DISPLAY="$DISPLAY" -e QT_X11_NO_MITSHM=1 -v /tmp/.X11-unix:/tmp/.X11-unix:rw)
 fi
@@ -38,4 +58,19 @@ fi
 # src をマウントして編集を即反映 (再ビルドは colcon build).
 run_args+=(-v "$WS_ROOT/src:/ros2_ws/src:Z")
 
-exec podman run "${run_args[@]}" "$IMAGE" "$@"
+# macOS socat ブリッジ: コンテナ起動時に仮想シリアルポートを作成してからコマンドを実行.
+if [[ "$(uname)" == "Darwin" ]] && [[ -n "${SERIAL_BRIDGE_PORT:-}" || -v run_args ]] && nc -z localhost "$BRIDGE_PORT" 2>/dev/null; then
+  bridge_cmd="socat PTY,link=$USB_PORT,raw,echo=0,waitslave TCP:host.containers.internal:$BRIDGE_PORT &"
+  bridge_cmd+=" sleep 1 && echo '>>> virtual serial: $USB_PORT ready'"
+
+  if [[ $# -eq 0 ]]; then
+    # 対話シェル: bashrc の前にブリッジを起動.
+    exec podman run "${run_args[@]}" "$IMAGE" \
+      bash -c "$bridge_cmd && exec bash"
+  else
+    exec podman run "${run_args[@]}" "$IMAGE" \
+      bash -c "$bridge_cmd && $*"
+  fi
+else
+  exec podman run "${run_args[@]}" "$IMAGE" "$@"
+fi

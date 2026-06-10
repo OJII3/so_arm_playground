@@ -64,18 +64,38 @@ nix run github:wentasah/ros2nix -- \
 
 ## 起動方法 B: podman (macOS / 退避路)
 
-`podman` はシステムに用意しておくこと（nix では入れていない）。macOS は初回に
-`podman machine init && podman machine start` が必要。
+`podman` は nix devShell (`nix develop`) に含まれている。
+
+### 初回セットアップ
+
+```bash
+./podman/setup.sh    # podman machine を初期化・起動
+```
+
+### コンテナ起動
 
 ```bash
 ./podman/run.sh                  # イメージを build して対話シェル
 ./podman/run.sh ros2 launch lerobot_description so101_display.launch.py
+REBUILD=1 ./podman/run.sh        # イメージを強制リビルド
 ```
 
-- 実機シリアルは `USB_PORT`(default `/dev/ttyACM0`)が存在すれば `--device` で渡す。
+### macOS で実機制御 (socat ブリッジ)
+
+macOS の podman machine (applehv) は USB パススルーに非対応のため、
+socat で Mac 上のシリアルポートを TCP に変換し、コンテナ内で仮想シリアルに戻す。
+
+```bash
+# ターミナル 1: シリアルブリッジを起動
+./podman/serial-bridge.sh                              # 自動検出
+./podman/serial-bridge.sh /dev/tty.usbmodemXXXX        # 明示指定
+
+# ターミナル 2: コンテナ起動 (ブリッジを検出して /dev/ttyACM0 を自動作成)
+./podman/run.sh
+```
+
 - rviz/MoveIt GUI は X11 forwarding (`DISPLAY` と `/tmp/.X11-unix`)。事前に `xhost +local:` が必要な場合あり。
-- **macOS の制約**: `podman machine` (Linux VM) はホスト USB を直接渡せないため、Mac 単体では
-  実機制御不可。実機は Linux ホスト (PC / Raspberry Pi) で実行すること。Mac はシミュレーション・開発まで。
+- Linux ホストではブリッジ不要 — `--device` で直接マウントされる。
 
 ## 代表的なコマンド
 
