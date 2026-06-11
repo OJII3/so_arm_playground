@@ -1,0 +1,24 @@
+gamepad_teleop_node:
+  ros__parameters:
+    publish_rate: 50.0
+    linear_speed: 0.05      # m/s at full stick deflection
+    vertical_speed: 0.05    # m/s at full stick deflection
+    deadzone: 0.15
+    # PS3 DualShock 3 axis mapping
+    axis_x: 1     # left stick Y → forward/back
+    axis_y: 0     # left stick X → left/right
+    axis_z: 3     # right stick Y → up/down
+    # PS3 button mapping
+    button_gripper_open: 5   # R1
+    button_gripper_close: 4  # L1
+    button_toggle_active: 0  # Cross
+
+teleop_ik_node:
+  ros__parameters:
+    end_effector_frame: "gripper"
+    position_scale: 1.0
+    ik_damping: 1.0e-6
+    ik_max_iterations: 100
+    ik_tolerance: 1.0e-4
+    trajectory_time_from_start: 0.1
+    unity_conversion: false

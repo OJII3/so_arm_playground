@@ -42,6 +42,7 @@ class TeleopIKNode(Node):
         self.declare_parameter("ik_max_iterations", 100)
         self.declare_parameter("ik_tolerance", 1e-4)
         self.declare_parameter("trajectory_time_from_start", 0.1)
+        self.declare_parameter("unity_conversion", True)
 
         # -- Load URDF via xacro --
         urdf_path = self.get_parameter("urdf_path").get_parameter_value().string_value
@@ -79,6 +80,10 @@ class TeleopIKNode(Node):
         self.get_logger().info(
             f"Pinocchio model loaded: {self._model.nq} DOF, "
             f"EE frame='{ee_frame_name}' (id={self._ee_frame_id})"
+        )
+
+        self._unity_conversion = (
+            self.get_parameter("unity_conversion").get_parameter_value().bool_value
         )
 
         # -- Session state --
@@ -182,23 +187,25 @@ class TeleopIKNode(Node):
 
         scale = self.get_parameter("position_scale").get_parameter_value().double_value
 
-        # Convert Unity pose to ROS frame
         p = msg.pose.position
-        ros_pos = unity_position_to_ros(p.x, p.y, p.z, scale)
+        o = msg.pose.orientation
+
+        if self._unity_conversion:
+            ros_pos = unity_position_to_ros(p.x, p.y, p.z, scale)
+            ros_quat = unity_quaternion_to_ros(o.x, o.y, o.z, o.w)
+        else:
+            ros_pos = np.array([p.x, p.y, p.z]) * scale
+            ros_quat = np.array([o.x, o.y, o.z, o.w])
 
         # On first pose, record anchor
         if self._unity_anchor_pos is None:
             self._unity_anchor_pos = ros_pos.copy()
-            self.get_logger().info(f"Unity anchor set: {self._unity_anchor_pos}")
+            self.get_logger().info(f"Anchor set: {self._unity_anchor_pos}")
             return
 
         # Compute delta from anchor
         delta = ros_pos - self._unity_anchor_pos
         target_pos = self._arm_init_pos + delta
-
-        # Convert orientation
-        o = msg.pose.orientation
-        ros_quat = unity_quaternion_to_ros(o.x, o.y, o.z, o.w)
 
         # Build target SE3
         target_rot = pin.Quaternion(

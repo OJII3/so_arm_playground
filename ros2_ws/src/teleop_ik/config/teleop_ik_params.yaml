@@ -7,3 +7,4 @@ teleop_ik_node:
     ik_max_iterations: 100
     ik_tolerance: 1.0e-4
     trajectory_time_from_start: 0.1
+    unity_conversion: true

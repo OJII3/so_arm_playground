@@ -58,6 +58,10 @@ pkgs.mkShell {
           trajectory-msgs
           urdf
           xacro
+
+          joy
+          python3Packages.coal
+          python3Packages.pinocchio
         ]
       )
       ++ builtins.attrValues extraPkgs
