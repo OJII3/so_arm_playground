@@ -112,6 +112,9 @@ ros2 launch lerobot_controller so101_follower_controller.launch.py \
 # リーダー・フォロワー (teleoperation)
 ros2 launch lerobot_controller so101_leader_follower.launch.py
 
+# SoArmVR・フォロワー実機 (VR teleoperation)
+ros2 launch teleop_ik vr_teleop.launch.py usb_port:=/dev/ttyACM0
+
 # MoveIt 2
 ros2 launch lerobot_moveit so101_moveit.launch.py is_sim:=False
 
@@ -119,6 +122,11 @@ ros2 launch lerobot_moveit so101_moveit.launch.py is_sim:=False
 ros2 run feetech_ros2_driver feetech_calibration_node --ros-args \
   -p usb_port:=/dev/ttyACM0 -p save_path:=./calib.json
 ```
+
+VR テレオペ launch は follower 実機 controller と `teleop_ik_node` をまとめて起動する。
+`/teleop/target_pose` は SoArmVR に合わせて BestEffort で購読し、IK が収束しない場合は
+関節指令を publish しない。IK の各反復と出力値は URDF の関節上下限に clamp される。
+SO-101 は 5 DOF のため、現在の IK は target pose の位置3軸のみを追従し、回転は使用しない。
 
 ## 検証状況
 
