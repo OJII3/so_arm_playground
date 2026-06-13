@@ -278,8 +278,7 @@ class TeleopIKNode(Node):
             q = self._clamp_joints(q)
 
         self.get_logger().warn("IK did not converge within max iterations")
-        # Return best-effort result even if not converged
-        return self._clamp_joints(q)
+        return None
 
     def _clamp_joints(self, q: np.ndarray) -> np.ndarray:
         """Clamp joint values to their limits defined in the URDF."""
