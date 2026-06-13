@@ -6,18 +6,18 @@ Pinocchio, and publishes JointTrajectory commands.
 
 import subprocess
 
+from builtin_interfaces.msg import Duration
+from geometry_msgs.msg import PoseStamped
 import numpy as np
 import pinocchio as pin
 import rclpy
-from builtin_interfaces.msg import Duration
-from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, Float64
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from teleop_ik.coordinate_utils import unity_position_to_ros, unity_quaternion_to_ros
+from teleop_ik.coordinate_utils import unity_position_to_ros, unity_quaternion_to_pitch_roll
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 # Joint names used by the arm controller (joints 1-5)
 ARM_JOINT_NAMES = ["1", "2", "3", "4", "5"]
@@ -77,6 +77,8 @@ class TeleopIKNode(Node):
                 self.get_logger().fatal(f"Joint '{jname}' not found in URDF")
                 raise RuntimeError(f"Joint '{jname}' not found in URDF")
             self._arm_joint_ids.append(self._model.getJointId(jname))
+        self._position_joint_ids = self._arm_joint_ids[:3]
+        self._wrist_joint_ids = self._arm_joint_ids[3:]
 
         self.get_logger().info(
             f"Pinocchio model loaded: {self._model.nq} DOF, "
@@ -92,6 +94,8 @@ class TeleopIKNode(Node):
         self._arm_init_pos: np.ndarray | None = None  # EE position at session start
         self._unity_anchor_pos: np.ndarray | None = None  # First Unity pose (ROS frame)
         self._q_current = pin.neutral(self._model)
+        self._q_solution: np.ndarray | None = None
+        self._wrist_init_pos: np.ndarray | None = None
 
         # -- Subscribers --
         self.create_subscription(
@@ -167,6 +171,13 @@ class TeleopIKNode(Node):
         pin.updateFramePlacements(self._model, self._data)
         self._arm_init_pos = self._data.oMf[self._ee_frame_id].translation.copy()
         self._unity_anchor_pos = None  # Will be set on first target_pose
+        self._q_solution = self._q_current.copy()
+        self._wrist_init_pos = np.array(
+            [
+                self._q_current[self._model.joints[jid].idx_q]
+                for jid in self._wrist_joint_ids
+            ]
+        )
         self._active = True
         self.get_logger().info(
             f"Session started. EE init pos: {self._arm_init_pos}"
@@ -177,6 +188,8 @@ class TeleopIKNode(Node):
         self._active = False
         self._arm_init_pos = None
         self._unity_anchor_pos = None
+        self._q_solution = None
+        self._wrist_init_pos = None
         self.get_logger().info("Session stopped")
 
     def _on_joint_states(self, msg: JointState) -> None:
@@ -190,7 +203,12 @@ class TeleopIKNode(Node):
 
     def _on_target_pose(self, msg: PoseStamped) -> None:
         """Receive target pose from Unity and solve IK."""
-        if not self._active or self._arm_init_pos is None:
+        if (
+            not self._active
+            or self._arm_init_pos is None
+            or self._q_solution is None
+            or self._wrist_init_pos is None
+        ):
             return
 
         scale = self.get_parameter("position_scale").get_parameter_value().double_value
@@ -200,10 +218,8 @@ class TeleopIKNode(Node):
 
         if self._unity_conversion:
             ros_pos = unity_position_to_ros(p.x, p.y, p.z, scale)
-            ros_quat = unity_quaternion_to_ros(o.x, o.y, o.z, o.w)
         else:
             ros_pos = np.array([p.x, p.y, p.z]) * scale
-            ros_quat = np.array([o.x, o.y, o.z, o.w])
 
         # On first pose, record anchor
         if self._unity_anchor_pos is None:
@@ -215,15 +231,18 @@ class TeleopIKNode(Node):
         delta = ros_pos - self._unity_anchor_pos
         target_pos = self._arm_init_pos + delta
 
-        # Build target SE3
-        target_rot = pin.Quaternion(
-            ros_quat[3], ros_quat[0], ros_quat[1], ros_quat[2]
-        ).toRotationMatrix()
-        oMdes = pin.SE3(target_rot, target_pos)
+        pitch, roll = unity_quaternion_to_pitch_roll(o.x, o.y, o.z, o.w)
+        q_seed = self._q_solution.copy()
+        for jid, target in zip(
+            self._wrist_joint_ids,
+            self._wrist_init_pos + np.array([pitch, roll]),
+        ):
+            q_seed[self._model.joints[jid].idx_q] = target
+        q_seed = self._clamp_joints(q_seed)
 
-        # Solve IK
-        q_result = self._solve_ik(oMdes)
+        q_result = self._solve_ik(target_pos, q_seed)
         if q_result is not None:
+            self._q_solution = q_result
             self._publish_arm_trajectory(q_result)
 
     def _on_gripper(self, msg: Float64) -> None:
@@ -240,7 +259,9 @@ class TeleopIKNode(Node):
     # IK solver (damped least squares CLIK)
     # ------------------------------------------------------------------ #
 
-    def _solve_ik(self, oMdes: pin.SE3) -> np.ndarray | None:
+    def _solve_ik(
+        self, target_position: np.ndarray, q_seed: np.ndarray
+    ) -> np.ndarray | None:
         """Solve position IK using damped least-squares (CLIK)."""
         damping = self.get_parameter("ik_damping").get_parameter_value().double_value
         max_iter = (
@@ -248,7 +269,11 @@ class TeleopIKNode(Node):
         )
         tol = self.get_parameter("ik_tolerance").get_parameter_value().double_value
 
-        q = self._q_current.copy()
+        q = self._clamp_joints(q_seed.copy())
+        position_velocity_indexes = [
+            self._model.joints[jid].idx_v
+            for jid in self._position_joint_ids
+        ]
         dt = 0.2
 
         for _ in range(max_iter):
@@ -256,7 +281,7 @@ class TeleopIKNode(Node):
             pin.updateFramePlacements(self._model, self._data)
 
             oMcur = self._data.oMf[self._ee_frame_id]
-            err = oMdes.translation - oMcur.translation
+            err = target_position - oMcur.translation
 
             if np.linalg.norm(err) < tol:
                 return self._clamp_joints(q)
@@ -267,10 +292,12 @@ class TeleopIKNode(Node):
                 q,
                 self._ee_frame_id,
                 pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
-            )[:3, :]
+            )[:3, position_velocity_indexes]
 
             JJt = J @ J.T + damping * np.eye(3)
-            dq = J.T @ np.linalg.solve(JJt, err)
+            position_dq = J.T @ np.linalg.solve(JJt, err)
+            dq = np.zeros(self._model.nv)
+            dq[position_velocity_indexes] = position_dq
 
             q = pin.integrate(self._model, q, dq * dt)
             q = self._clamp_joints(q)

@@ -1,8 +1,8 @@
 import os
 
+from ament_index_python.packages import get_package_share_directory
 import pytest
 import rclpy
-from ament_index_python.packages import get_package_share_directory
 from rclpy.node import Node
 from rclpy.qos import ReliabilityPolicy
 

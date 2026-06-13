@@ -126,7 +126,9 @@ ros2 run feetech_ros2_driver feetech_calibration_node --ros-args \
 VR テレオペ launch は follower 実機 controller と `teleop_ik_node` をまとめて起動する。
 `/teleop/target_pose` は SoArmVR に合わせて BestEffort で購読し、IK が収束しない場合は
 関節指令を publish しない。IK の各反復と出力値は URDF の関節上下限に clamp される。
-SO-101 は 5 DOF のため、現在の IK は target pose の位置3軸のみを追従し、回転は使用しない。
+SoArmVR の相対回転はローカル pitch を joint 4、ローカル roll を joint 5 に対応させ、
+yaw は使用しない。joint 4・5 を回転目標に固定した上で、joint 1〜3 のみを位置 IK で解く。
+各フレームは直前に成功した IK 解を初期値にし、非収束時は最後の成功解を維持する。
 
 ## 検証状況
 
