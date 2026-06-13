@@ -5,7 +5,13 @@
 - 対象コミット: ROSettaDDS `main` `8d1c383` (調査時点)
 
 本書は SoArmVR 側で確認した ROSettaDDS の機能不足・ドキュメント問題の記録。
-本リポジトリではこれらを修正せず、ROSettaDDS 側での対応候補として報告する。
+本リポジトリでは修正せず、ROSettaDDS 側 ([OJII3/ROSettaDDS#72](https://github.com/OJII3/ROSettaDDS/issues/72) /
+[#73](https://github.com/OJII3/ROSettaDDS/issues/73) /
+[#74](https://github.com/OJII3/ROSettaDDS/issues/74)) に報告した。
+
+> **解決済み (2026-06-13):** ROSettaDDS `main` (`128bf98`) で #72 (NIC 自動列挙) と #73 (geometry_msgs 同梱) が
+> 修正された。これに伴い SoArmVR 側のワークアラウンド (ローカル NIC 検出 `LocalNetwork.cs`、
+> `geometry_msgs` のローカル生成) を削除した。本書は経緯の記録として残す。
 
 ## 1. ローカルインターフェースの自動列挙が無い (機能不足)
 

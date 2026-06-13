@@ -30,13 +30,11 @@ namespace SoArmVR.Teleoperation
         {
             if (_participant != null) return;
 
-            var localIp = LocalNetwork.ResolvePrimaryIPv4();
+            // LocalUnicastAddress 未指定 (既定) で ROSettaDDS が全 NIC を自動列挙して広告する。
             var options = new DomainParticipantOptions
             {
                 DomainId = 0,
                 EntityName = "soarmvr",
-                LocalUnicastAddress = localIp,   // null の場合 ROSettaDDS 側で loopback にフォールバック
-                MulticastInterface = localIp,
             };
             _participant = new DomainParticipant(options);
             _participant.Start();
