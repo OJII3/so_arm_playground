@@ -1,12 +1,14 @@
+using System.Net;
 using UnityEngine;
-using Rclsharp.Dds;
-using Rclsharp.Msgs.Geometry;
-using Rclsharp.Msgs.Std;
-using Rclsharp.Msgs.BuiltinInterfaces;
+using ROSettaDDS.Dds;
+using ROSettaDDS.Dds.QoS;
+using ROSettaDDS.Msgs.Geometry;
+using ROSettaDDS.Msgs.Std;
+using ROSettaDDS.Msgs.BuiltinInterfaces;
 
-using RosQuaternion = Rclsharp.Msgs.Geometry.Quaternion;
-using RosPose = Rclsharp.Msgs.Geometry.Pose;
-using RosTime = Rclsharp.Msgs.BuiltinInterfaces.Time;
+using RosQuaternion = ROSettaDDS.Msgs.Geometry.Quaternion;
+using RosPose = ROSettaDDS.Msgs.Geometry.Pose;
+using RosTime = ROSettaDDS.Msgs.BuiltinInterfaces.Time;
 
 namespace SoArmVR.Teleoperation
 {
@@ -29,21 +31,34 @@ namespace SoArmVR.Teleoperation
         {
             if (_participant != null) return;
 
-            var options = new DomainParticipantOptions();
+            var localIp = LocalNetwork.ResolvePrimaryIPv4();
+            var options = new DomainParticipantOptions
+            {
+                DomainId = 0,
+                EntityName = "soarmvr",
+                LocalUnicastAddress = localIp,   // null の場合 ROSettaDDS 側で loopback にフォールバック
+                MulticastInterface = localIp,
+            };
             _participant = new DomainParticipant(options);
             _participant.Start();
 
+            // target_pose は高頻度なので sensor-data 相当の BestEffort。
             _posePub = _participant.CreatePublisher<PoseStamped>(
                 "/teleop/target_pose",
-                PoseStampedSerializer.Instance);
+                PoseStampedSerializer.Instance,
+                ReliabilityQos.BestEffort,
+                DurabilityQos.Volatile,
+                PoseStamped.DdsTypeName);
 
             _gripperPub = _participant.CreatePublisher<Float64Message>(
                 "/teleop/gripper",
-                Float64MessageSerializer.Instance);
+                Float64MessageSerializer.Instance,
+                Float64Message.DdsTypeName);
 
             _activePub = _participant.CreatePublisher<BoolMessage>(
                 "/teleop/active",
-                BoolMessageSerializer.Instance);
+                BoolMessageSerializer.Instance,
+                BoolMessage.DdsTypeName);
         }
 
         public void OnSessionBegin()
