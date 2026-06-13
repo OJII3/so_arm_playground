@@ -72,6 +72,9 @@
             inherit shellHook;
           };
         }
+        // {
+          soarmvr = pkgs.callPackage ./SoArmVR/nix/dotnet-shell.nix { };
+        }
         # podman + socat シェル (`nix develop .#podman`). macOS で ros2_ws のコンテナ開発に使う.
         // {
           podman = pkgs.mkShell {
