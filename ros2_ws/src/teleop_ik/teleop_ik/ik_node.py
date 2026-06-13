@@ -12,6 +12,7 @@ import rclpy
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, Float64
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
@@ -97,7 +98,14 @@ class TeleopIKNode(Node):
             Bool, "/teleop/active", self._on_active, 10
         )
         self.create_subscription(
-            PoseStamped, "/teleop/target_pose", self._on_target_pose, 10
+            PoseStamped,
+            "/teleop/target_pose",
+            self._on_target_pose,
+            QoSProfile(
+                depth=10,
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+                durability=DurabilityPolicy.VOLATILE,
+            ),
         )
         self.create_subscription(
             Float64, "/teleop/gripper", self._on_gripper, 10
