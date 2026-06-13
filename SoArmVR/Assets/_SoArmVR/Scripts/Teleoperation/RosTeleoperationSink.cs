@@ -1,4 +1,3 @@
-using System.Net;
 using UnityEngine;
 using ROSettaDDS.Dds;
 using ROSettaDDS.Dds.QoS;
@@ -13,7 +12,7 @@ using RosTime = ROSettaDDS.Msgs.BuiltinInterfaces.Time;
 namespace SoArmVR.Teleoperation
 {
     /// <summary>
-    /// テレオペレーションデータを rclsharp (DDS) 経由で ROS 2 トピックに publish する Sink。
+    /// テレオペレーションデータを ROSettaDDS (DDS) 経由で ROS 2 トピックに publish する Sink。
     /// </summary>
     public class RosTeleoperationSink : MonoBehaviour, ITeleoperationSink
     {
