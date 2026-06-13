@@ -3,7 +3,7 @@
     "rootNamespace": "SoArmVR",
     "references": [
         "Unity.InputSystem",
-        "Rclsharp"
+        "ROSettaDDS"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
