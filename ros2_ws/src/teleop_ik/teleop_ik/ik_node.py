@@ -241,11 +241,7 @@ class TeleopIKNode(Node):
     # ------------------------------------------------------------------ #
 
     def _solve_ik(self, oMdes: pin.SE3) -> np.ndarray | None:
-        """Solve IK using damped least-squares (CLIK).
-
-        Position (3DOF) is prioritized; orientation is best-effort for this
-        5-DOF arm.
-        """
+        """Solve position IK using damped least-squares (CLIK)."""
         damping = self.get_parameter("ik_damping").get_parameter_value().double_value
         max_iter = (
             self.get_parameter("ik_max_iterations").get_parameter_value().integer_value
@@ -253,33 +249,27 @@ class TeleopIKNode(Node):
         tol = self.get_parameter("ik_tolerance").get_parameter_value().double_value
 
         q = self._q_current.copy()
-        dt = 1.0  # integration step
+        dt = 0.2
 
         for _ in range(max_iter):
             pin.forwardKinematics(self._model, self._data, q)
             pin.updateFramePlacements(self._model, self._data)
 
             oMcur = self._data.oMf[self._ee_frame_id]
-            err_se3 = pin.log6(oMcur.actInv(oMdes))
-            err = err_se3.vector  # 6D error
+            err = oMdes.translation - oMcur.translation
 
-            # Check convergence on position only (first 3 components = linear)
-            if np.linalg.norm(err[:3]) < tol:
-                # Clamp to joint limits
-                q = self._clamp_joints(q)
-                return q
+            if np.linalg.norm(err) < tol:
+                return self._clamp_joints(q)
 
-            # Compute frame Jacobian in LOCAL_WORLD_ALIGNED frame
             J = pin.computeFrameJacobian(
                 self._model,
                 self._data,
                 q,
                 self._ee_frame_id,
                 pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
-            )
+            )[:3, :]
 
-            # Damped least squares: dq = J^T (J J^T + lambda^2 I)^{-1} err
-            JJt = J @ J.T + (damping**2) * np.eye(6)
+            JJt = J @ J.T + damping * np.eye(3)
             dq = J.T @ np.linalg.solve(JJt, err)
 
             q = pin.integrate(self._model, q, dq * dt)
