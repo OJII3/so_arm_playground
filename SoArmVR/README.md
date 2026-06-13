@@ -7,12 +7,9 @@ pure C# RTPS/DDS により直接 pub/sub する。
 ## ROS 2 連携
 
 - 参照パッケージ: `com.ojii3.rosettadds` (UPM git 依存, `Packages/manifest.json`)
-- 標準 msg (`std_msgs` / `builtin_interfaces`) は ROSettaDDS に同梱。
-- `geometry_msgs` は ROSettaDDS 未同梱のため、当プロジェクトで生成・保守する
-  (`Assets/Msgs/geometry_msgs/`, 生成物は `Assets/_SoArmVR/Scripts/GeneratedMsgs/`)。
-- LAN 上の ROS 2 と通信するため、`RosTeleoperationSink` は `LocalNetwork.ResolvePrimaryIPv4()`
-  で実 NIC の IPv4 を検出し `DomainParticipantOptions` に渡す
-  (ROSettaDDS が NIC 自動列挙に未対応なための暫定対応。`docs/rosettadds-feature-gaps.md` 参照)。
+- `std_msgs` / `builtin_interfaces` / `geometry_msgs` などの標準 msg は ROSettaDDS に同梱。
+  当プロジェクトでは独自 msg を持たない。
+- LAN 上の ROS 2 とは `DomainParticipantOptions` 既定 (NIC 自動列挙) で直接 pub/sub する。
 
 ### publish するトピック
 
@@ -27,21 +24,21 @@ pure C# RTPS/DDS により直接 pub/sub する。
 > デフォルト (Reliable) のままだと DDS の QoS 非互換でマッチせず**メッセージが届かない**。
 > 購読側も `reliability=BEST_EFFORT` (例: `rclpy` の `QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT)`) に設定すること。
 
-## msg の再生成
+## 独自 msg を追加する場合
 
-`.msg` を変更したら `rosettadds-genmsg` で再生成する。dotnet SDK は専用 devShell
+標準 msg は ROSettaDDS 同梱なので通常は生成不要。ROS 2 標準に無い独自 msg が必要に
+なった場合のみ、`rosettadds-genmsg` で C# 型を生成する。dotnet SDK は専用 devShell
 (`.#soarmvr`) に含まれる。リポジトリルートで実行する。
 
 ```sh
 # 生成ツールを含む ROSettaDDS を取得 (未取得の場合)
 git clone --depth 1 https://github.com/OJII3/ROSettaDDS.git /tmp/rosettadds-genmsg-src
 
-# 再生成 (入力: Assets/Msgs, 出力: Assets/_SoArmVR/Scripts/GeneratedMsgs)
+# 例: Assets/Msgs/<package>/msg/*.msg を生成して Assets 配下へ出力する
 nix develop .#soarmvr --command dotnet run \
   --project /tmp/rosettadds-genmsg-src/tools/rosettadds-genmsg -- \
   --input  SoArmVR/Assets/Msgs \
   --output SoArmVR/Assets/_SoArmVR/Scripts/GeneratedMsgs
 ```
 
-生成型は `ROSettaDDS.Msgs.Geometry` 名前空間で出力され、ROSettaDDS 同梱の
-`ROSettaDDS.Cdr` / `ROSettaDDS.Msgs.Std` を参照する。
+生成型は ROSettaDDS 同梱の `ROSettaDDS.Cdr` / `ROSettaDDS.Msgs.*` を参照する。
