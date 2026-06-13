@@ -1,11 +1,11 @@
 {
   "dependencies": {
-    "com.ojii3.rclsharp": {
-      "version": "https://github.com/OJII3/rclsharp.git?path=/src/rclsharp",
+    "com.ojii3.rosettadds": {
+      "version": "https://github.com/OJII3/ROSettaDDS.git?path=/src/rosettadds",
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "935dd1ec223c770d6ebd1b0f8c795ee0db92e50f"
+      "hash": "8d1c383da73c720787a05a6f83aafebb41fd1200"
     },
     "com.unity.burst": {
       "version": "1.8.27",
