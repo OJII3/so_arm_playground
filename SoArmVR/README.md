@@ -22,6 +22,11 @@ pure C# RTPS/DDS により直接 pub/sub する。
 | `/teleop/gripper` | `std_msgs/Float64` | Reliable |
 | `/teleop/active` | `std_msgs/Bool` | Reliable |
 
+> [!IMPORTANT]
+> `/teleop/target_pose` は BestEffort で publish する。ROS 2 側の subscriber が
+> デフォルト (Reliable) のままだと DDS の QoS 非互換でマッチせず**メッセージが届かない**。
+> 購読側も `reliability=BEST_EFFORT` (例: `rclpy` の `QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT)`) に設定すること。
+
 ## msg の再生成
 
 `.msg` を変更したら `rosettadds-genmsg` で再生成する。dotnet SDK は専用 devShell

@@ -31,6 +31,10 @@ namespace SoArmVR.Teleoperation
                 {
                     if (ua.Address.AddressFamily != AddressFamily.InterNetwork) continue;
                     if (IPAddress.IsLoopback(ua.Address)) continue;
+                    // 列挙順で最初に見つかった NIC を採用するため、VPN や WiFi Direct の
+                    // 仮想 NIC が物理 LAN より先に来ると誤検出しうる。採用した IP をログして
+                    // 疎通不能時に切り分けられるようにする。
+                    Debug.Log($"LocalNetwork: 使用する IPv4 = {ua.Address} (NIC: {nic.Name})");
                     return ua.Address;
                 }
             }
