@@ -15,14 +15,20 @@ def generate_launch_description():
     is_sim_arg = DeclareLaunchArgument("is_sim", default_value="True")
     usb_port_arg = DeclareLaunchArgument("usb_port", default_value="/dev/ttyACM0")
     calib_json_arg = DeclareLaunchArgument(
-        "calib_json", default_value=os.path.join(
-                    get_package_share_directory("lerobot_controller"),
-                    "config",
-                    "follower_calib.json",
-                ),
+        "calib_json",
+        default_value=os.path.join(
+            get_package_share_directory("lerobot_controller"),
+            "config",
+            # "follower_calib.json",
+            "kaguyaccho.json",
+        ),
     )
-    auto_zero_arg = DeclareLaunchArgument("auto_zero_on_activate", default_value="false")
-    apply_home_arg = DeclareLaunchArgument("apply_home_on_activate", default_value="false")
+    auto_zero_arg = DeclareLaunchArgument(
+        "auto_zero_on_activate", default_value="false"
+    )
+    apply_home_arg = DeclareLaunchArgument(
+        "apply_home_on_activate", default_value="false"
+    )
     home_j1_arg = DeclareLaunchArgument("home_j1_rad", default_value="0.0")
     home_j2_arg = DeclareLaunchArgument("home_j2_rad", default_value="0.0")
     home_j3_arg = DeclareLaunchArgument("home_j3_rad", default_value="0.0")
@@ -49,13 +55,21 @@ def generate_launch_description():
             arm_controller_spawner = Node(
                 package="controller_manager",
                 executable="spawner",
-                arguments=["arm_controller", "--controller-manager", "/follower/controller_manager"],
+                arguments=[
+                    "arm_controller",
+                    "--controller-manager",
+                    "/follower/controller_manager",
+                ],
             )
 
             gripper_controller_spawner = Node(
                 package="controller_manager",
                 executable="spawner",
-                arguments=["gripper_controller", "--controller-manager", "/follower/controller_manager"],
+                arguments=[
+                    "gripper_controller",
+                    "--controller-manager",
+                    "/follower/controller_manager",
+                ],
             )
 
             return [
@@ -95,7 +109,8 @@ def generate_launch_description():
                 # 1) Support example_calib.json format: top-level joints with id and homing_offset
                 #    e.g. {"shoulder_pan": {"id":1, "homing_offset":1453, ...}, ...}
                 if isinstance(data, dict) and all(
-                    isinstance(v, dict) and ("id" in v and "homing_offset" in v) for v in data.values()
+                    isinstance(v, dict) and ("id" in v and "homing_offset" in v)
+                    for v in data.values()
                 ):
                     # Map by servo id -> homing_offset (ticks, modulo 4096)
                     for name, cfg in data.items():
@@ -128,17 +143,42 @@ def generate_launch_description():
                                         if u in ("tick", "ticks", "step", "steps"):
                                             offsets[k] = int(round(float(val))) % 4096
                                         elif u in ("rad", "radian", "radians"):
-                                            offsets[k] = int(round(float(val) * 4096.0 / (2.0 * 3.141592653589793))) % 4096
+                                            offsets[k] = (
+                                                int(
+                                                    round(
+                                                        float(val)
+                                                        * 4096.0
+                                                        / (2.0 * 3.141592653589793)
+                                                    )
+                                                )
+                                                % 4096
+                                            )
                                         elif u in ("deg", "degree", "degrees"):
-                                            offsets[k] = int(round(float(val) * 4096.0 / 360.0)) % 4096
+                                            offsets[k] = (
+                                                int(round(float(val) * 4096.0 / 360.0))
+                                                % 4096
+                                            )
                                         else:
                                             offsets[k] = int(round(float(val))) % 4096
                                     else:
                                         fv = float(val)
-                                        if abs(fv) <= 2 * 3.141592653589793 and (abs(fv) < 10 and (fv != int(fv))):
-                                            offsets[k] = int(round(fv * 4096.0 / (2.0 * 3.141592653589793))) % 4096
+                                        if abs(fv) <= 2 * 3.141592653589793 and (
+                                            abs(fv) < 10 and (fv != int(fv))
+                                        ):
+                                            offsets[k] = (
+                                                int(
+                                                    round(
+                                                        fv
+                                                        * 4096.0
+                                                        / (2.0 * 3.141592653589793)
+                                                    )
+                                                )
+                                                % 4096
+                                            )
                                         elif abs(fv) <= 360.0:
-                                            offsets[k] = int(round(fv * 4096.0 / 360.0)) % 4096
+                                            offsets[k] = (
+                                                int(round(fv * 4096.0 / 360.0)) % 4096
+                                            )
                                         else:
                                             offsets[k] = int(round(fv)) % 4096
                                 except Exception:
@@ -157,12 +197,18 @@ def generate_launch_description():
                     auto_zero_val,
                     " apply_home_on_activate:=",
                     apply_home_val,
-                    " home_j1_rad:=", home_j1,
-                    " home_j2_rad:=", home_j2,
-                    " home_j3_rad:=", home_j3,
-                    " home_j4_rad:=", home_j4,
-                    " home_j5_rad:=", home_j5,
-                    " home_j6_rad:=", home_j6,
+                    " home_j1_rad:=",
+                    home_j1,
+                    " home_j2_rad:=",
+                    home_j2,
+                    " home_j3_rad:=",
+                    home_j3,
+                    " home_j4_rad:=",
+                    home_j4,
+                    " home_j5_rad:=",
+                    home_j5,
+                    " home_j6_rad:=",
+                    home_j6,
                     " offset_j1:=",
                     str(offsets["1"]),
                     " offset_j2:=",
@@ -175,18 +221,30 @@ def generate_launch_description():
                     str(offsets["5"]),
                     " offset_j6:=",
                     str(offsets["6"]),
-                    " range_min_j1:=", str(ranges_min["1"]),
-                    " range_min_j2:=", str(ranges_min["2"]),
-                    " range_min_j3:=", str(ranges_min["3"]),
-                    " range_min_j4:=", str(ranges_min["4"]),
-                    " range_min_j5:=", str(ranges_min["5"]),
-                    " range_min_j6:=", str(ranges_min["6"]),
-                    " range_max_j1:=", str(ranges_max["1"]),
-                    " range_max_j2:=", str(ranges_max["2"]),
-                    " range_max_j3:=", str(ranges_max["3"]),
-                    " range_max_j4:=", str(ranges_max["4"]),
-                    " range_max_j5:=", str(ranges_max["5"]),
-                    " range_max_j6:=", str(ranges_max["6"]),
+                    " range_min_j1:=",
+                    str(ranges_min["1"]),
+                    " range_min_j2:=",
+                    str(ranges_min["2"]),
+                    " range_min_j3:=",
+                    str(ranges_min["3"]),
+                    " range_min_j4:=",
+                    str(ranges_min["4"]),
+                    " range_min_j5:=",
+                    str(ranges_min["5"]),
+                    " range_min_j6:=",
+                    str(ranges_min["6"]),
+                    " range_max_j1:=",
+                    str(ranges_max["1"]),
+                    " range_max_j2:=",
+                    str(ranges_max["2"]),
+                    " range_max_j3:=",
+                    str(ranges_max["3"]),
+                    " range_max_j4:=",
+                    str(ranges_max["4"]),
+                    " range_max_j5:=",
+                    str(ranges_max["5"]),
+                    " range_max_j6:=",
+                    str(ranges_max["6"]),
                 ]
             ),
             value_type=str,
@@ -226,13 +284,21 @@ def generate_launch_description():
         arm_controller_spawner = Node(
             package="controller_manager",
             executable="spawner",
-            arguments=["arm_controller", "--controller-manager", "/follower/controller_manager"],
+            arguments=[
+                "arm_controller",
+                "--controller-manager",
+                "/follower/controller_manager",
+            ],
         )
 
         gripper_controller_spawner = Node(
             package="controller_manager",
             executable="spawner",
-            arguments=["gripper_controller", "--controller-manager", "/follower/controller_manager"],
+            arguments=[
+                "gripper_controller",
+                "--controller-manager",
+                "/follower/controller_manager",
+            ],
         )
 
         return [
@@ -250,7 +316,12 @@ def generate_launch_description():
             calib_json_arg,
             auto_zero_arg,
             apply_home_arg,
-            home_j1_arg, home_j2_arg, home_j3_arg, home_j4_arg, home_j5_arg, home_j6_arg,
+            home_j1_arg,
+            home_j2_arg,
+            home_j3_arg,
+            home_j4_arg,
+            home_j5_arg,
+            home_j6_arg,
             OpaqueFunction(function=setup_nodes),
         ]
     )
