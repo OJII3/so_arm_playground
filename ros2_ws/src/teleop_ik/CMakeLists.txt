@@ -54,6 +54,14 @@ if(BUILD_TESTING)
     test/test_target_msg.py
     APPEND_ENV "PYTHONPATH=${CMAKE_INSTALL_PREFIX}/${python_site_packages}"
   )
+  ament_add_pytest_test(test_coordinate_utils
+    test/test_coordinate_utils.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_INSTALL_PREFIX}/${python_site_packages}"
+  )
+  ament_add_pytest_test(test_ik_node
+    test/test_ik_node.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_INSTALL_PREFIX}/${python_site_packages}"
+  )
 endif()
 
 ament_package()
