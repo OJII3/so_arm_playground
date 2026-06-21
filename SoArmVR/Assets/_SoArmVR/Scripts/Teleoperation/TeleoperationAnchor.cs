@@ -20,10 +20,20 @@ namespace SoArmVR.Teleoperation
             SetVisualVisible(false);
         }
 
-        /// <summary>指定のワールド姿勢（傾き込み）をそのまま基準としてアンカーを設置する。</summary>
+        /// <summary>
+        /// 指定のワールド位置とワールド回転を基準にアンカーを設置する。
+        /// アンカーの up 軸は常にワールド up 軸に一致させ、ヨーのみを保持する
+        /// (コントローラの pitch/roll は捨てる)。
+        /// </summary>
         public void Place(Vector3 worldPosition, Quaternion worldRotation)
         {
-            transform.SetPositionAndRotation(worldPosition, worldRotation);
+            Vector3 fwd = Vector3.ProjectOnPlane(worldRotation * Vector3.forward, Vector3.up);
+            if (fwd.sqrMagnitude < 1e-6f)
+            {
+                // 真上/真下を向きすぎて水平成分がほぼゼロのときはワールド forward にフォールバック
+                fwd = Vector3.ProjectOnPlane(Vector3.forward, Vector3.up);
+            }
+            transform.SetPositionAndRotation(worldPosition, Quaternion.LookRotation(fwd.normalized, Vector3.up));
             IsPlaced = true;
             SetVisualVisible(true);
         }

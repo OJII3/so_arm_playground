@@ -4,10 +4,12 @@ using ROSettaDDS.Dds.QoS;
 using ROSettaDDS.Msgs.Geometry;
 using ROSettaDDS.Msgs.Std;
 using ROSettaDDS.Msgs.BuiltinInterfaces;
+using ROSettaDDS.Msgs.TeleopIk;
 
 using RosQuaternion = ROSettaDDS.Msgs.Geometry.Quaternion;
 using RosPose = ROSettaDDS.Msgs.Geometry.Pose;
 using RosTime = ROSettaDDS.Msgs.BuiltinInterfaces.Time;
+using RosTargetPoseWithInput = ROSettaDDS.Msgs.TeleopIk.TargetPoseWithInput;
 
 namespace SoArmVR.Teleoperation
 {
@@ -17,7 +19,7 @@ namespace SoArmVR.Teleoperation
     public class RosTeleoperationSink : MonoBehaviour, ITeleoperationSink
     {
         DomainParticipant _participant;
-        Publisher<PoseStamped> _posePub;
+        Publisher<RosTargetPoseWithInput> _targetPub;
         Publisher<Float64Message> _gripperPub;
         Publisher<BoolMessage> _activePub;
 
@@ -39,13 +41,13 @@ namespace SoArmVR.Teleoperation
             _participant = new DomainParticipant(options);
             _participant.Start();
 
-            // target_pose は高頻度なので sensor-data 相当の BestEffort。
-            _posePub = _participant.CreatePublisher<PoseStamped>(
-                "/teleop/target_pose",
-                PoseStampedSerializer.Instance,
+            // target は高頻度なので sensor-data 相当の BestEffort。
+            _targetPub = _participant.CreatePublisher<RosTargetPoseWithInput>(
+                "/teleop/target",
+                TargetPoseWithInputSerializer.Instance,
                 ReliabilityQos.BestEffort,
                 DurabilityQos.Volatile,
-                PoseStamped.DdsTypeName);
+                RosTargetPoseWithInput.DdsTypeName);
 
             _gripperPub = _participant.CreatePublisher<Float64Message>(
                 "/teleop/gripper",
@@ -68,7 +70,7 @@ namespace SoArmVR.Teleoperation
         {
             // async void に in パラメータを直接渡せないため値コピーする
             var s = sample;
-            PublishPose(s);
+            PublishTarget(s);
             PublishGripper(s.gripper);
         }
 
@@ -79,35 +81,37 @@ namespace SoArmVR.Teleoperation
 
         void OnDestroy()
         {
-            _posePub?.Dispose();
+            _targetPub?.Dispose();
             _gripperPub?.Dispose();
             _activePub?.Dispose();
             _participant?.Dispose();
 
-            _posePub = null;
+            _targetPub = null;
             _gripperPub = null;
             _activePub = null;
             _participant = null;
         }
 
-        async void PublishPose(TeleoperationSample sample)
+        async void PublishTarget(TeleoperationSample sample)
         {
-            if (_posePub == null) return;
+            if (_targetPub == null) return;
 
             var now = System.DateTimeOffset.UtcNow;
             var stamp = new RosTime((int)now.ToUnixTimeSeconds(), (uint)(now.Millisecond * 1_000_000));
 
-            var msg = new PoseStamped(
+            var msg = new RosTargetPoseWithInput(
                 new Header(stamp, "teleop"),
                 new RosPose(
                     new Point(sample.position.x, sample.position.y, sample.position.z),
                     new RosQuaternion(sample.rotation.x, sample.rotation.y, sample.rotation.z, sample.rotation.w)
-                )
+                ),
+                sample.stick.x,
+                sample.stick.y
             );
 
             try
             {
-                await _posePub.PublishAsync(msg);
+                await _targetPub.PublishAsync(msg);
             }
             catch (System.ObjectDisposedException) { }
         }
