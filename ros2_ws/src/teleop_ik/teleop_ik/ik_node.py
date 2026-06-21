@@ -1,13 +1,12 @@
 """IK node for VR teleop of the SO-101 arm.
 
-Subscribes to VR controller pose and gripper commands, solves IK using
+Subscribes to VR controller pose+stick and gripper commands, solves IK using
 Pinocchio, and publishes JointTrajectory commands.
 """
 
 import subprocess
 
 from builtin_interfaces.msg import Duration
-from geometry_msgs.msg import PoseStamped
 import numpy as np
 import pinocchio as pin
 import rclpy
@@ -16,7 +15,8 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, Float64
 
-from teleop_ik.coordinate_utils import unity_position_to_ros, unity_quaternion_to_pitch_roll
+from teleop_ik.coordinate_utils import unity_position_to_ros
+from teleop_ik.msg import TargetPoseWithInput
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 # Joint names used by the arm controller (joints 1-5)
@@ -44,6 +44,12 @@ class TeleopIKNode(Node):
         self.declare_parameter("ik_tolerance", 1e-4)
         self.declare_parameter("trajectory_time_from_start", 0.1)
         self.declare_parameter("unity_conversion", True)
+
+        # -- Stick integration parameters --
+        self.declare_parameter("stick_velocity_scale", 1.5)
+        self.declare_parameter("stick_deadzone", 0.1)
+        self.declare_parameter("stick_max_delta_per_msg", 0.2)
+        self.declare_parameter("stick_fallback_dt", 0.0111)
 
         # -- Load URDF via xacro --
         urdf_path = self.get_parameter("urdf_path").get_parameter_value().string_value
@@ -89,6 +95,10 @@ class TeleopIKNode(Node):
             self.get_parameter("unity_conversion").get_parameter_value().bool_value
         )
 
+        # -- Stick integration state --
+        self._integrated_stick: tuple[float, float] = (0.0, 0.0)
+        self._last_msg_stamp = None  # float seconds (None when uninitialized)
+
         # -- Session state --
         self._active = False
         self._arm_init_pos: np.ndarray | None = None  # EE position at session start
@@ -102,9 +112,9 @@ class TeleopIKNode(Node):
             Bool, "/teleop/active", self._on_active, 10
         )
         self.create_subscription(
-            PoseStamped,
-            "/teleop/target_pose",
-            self._on_target_pose,
+            TargetPoseWithInput,
+            "/teleop/target",
+            self._on_target_with_input,
             QoSProfile(
                 depth=10,
                 reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -160,13 +170,18 @@ class TeleopIKNode(Node):
     # ------------------------------------------------------------------ #
 
     def _on_active(self, msg: Bool) -> None:
-        if msg.data and not self._active:
-            self._start_session()
-        elif not msg.data and self._active:
+        if msg.data:
+            if not self._active:
+                self._start_session()
+            else:
+                # Re-activation: reset stick state while keeping current session.
+                self._integrated_stick = (0.0, 0.0)
+                self._last_msg_stamp = None
+        elif self._active:
             self._stop_session()
 
     def _start_session(self) -> None:
-        """Start a teleop session: capture current EE position via FK."""
+        """Start a teleop session: capture current EE position via FK and reset stick state."""
         pin.forwardKinematics(self._model, self._data, self._q_current)
         pin.updateFramePlacements(self._model, self._data)
         self._arm_init_pos = self._data.oMf[self._ee_frame_id].translation.copy()
@@ -178,6 +193,8 @@ class TeleopIKNode(Node):
                 for jid in self._wrist_joint_ids
             ]
         )
+        self._integrated_stick = (0.0, 0.0)
+        self._last_msg_stamp = None
         self._active = True
         self.get_logger().info(
             f"Session started. EE init pos: {self._arm_init_pos}"
@@ -201,8 +218,8 @@ class TeleopIKNode(Node):
                 if i < len(msg.position):
                     self._q_current[idx_q] = msg.position[i]
 
-    def _on_target_pose(self, msg: PoseStamped) -> None:
-        """Receive target pose from Unity and solve IK."""
+    def _on_target_with_input(self, msg: TargetPoseWithInput) -> None:
+        """Receive target pose + stick from Unity and solve IK."""
         if (
             not self._active
             or self._arm_init_pos is None
@@ -214,7 +231,8 @@ class TeleopIKNode(Node):
         scale = self.get_parameter("position_scale").get_parameter_value().double_value
 
         p = msg.pose.position
-        o = msg.pose.orientation
+        # pose.orientation is intentionally ignored; wrist is driven by stick.
+        _ = msg.pose.orientation  # noqa: F841
 
         if self._unity_conversion:
             ros_pos = unity_position_to_ros(p.x, p.y, p.z, scale)
@@ -225,19 +243,66 @@ class TeleopIKNode(Node):
         if self._unity_anchor_pos is None:
             self._unity_anchor_pos = ros_pos.copy()
             self.get_logger().info(f"Anchor set: {self._unity_anchor_pos}")
+            self._last_msg_stamp = self._stamp_to_time(msg.header.stamp)
             return
+
+        # --- Stick integration ---
+        stick_scale = (
+            self.get_parameter("stick_velocity_scale")
+            .get_parameter_value()
+            .double_value
+        )
+        deadzone = (
+            self.get_parameter("stick_deadzone")
+            .get_parameter_value()
+            .double_value
+        )
+        max_delta = (
+            self.get_parameter("stick_max_delta_per_msg")
+            .get_parameter_value()
+            .double_value
+        )
+        fallback_dt = (
+            self.get_parameter("stick_fallback_dt")
+            .get_parameter_value()
+            .double_value
+        )
+
+        now = self._stamp_to_time(msg.header.stamp)
+        if self._last_msg_stamp is None or now is None:
+            delta_t = fallback_dt
+        else:
+            delta_t = now - self._last_msg_stamp
+            if delta_t <= 0.0 or delta_t > 0.5:
+                delta_t = fallback_dt
+        self._last_msg_stamp = now
 
         # Compute delta from anchor
         delta = ros_pos - self._unity_anchor_pos
         target_pos = self._arm_init_pos + delta
 
-        pitch, roll = unity_quaternion_to_pitch_roll(o.x, o.y, o.z, o.w)
+        vx, vy = self._apply_stick_deadzone(
+            float(msg.stick_x), float(msg.stick_y), deadzone
+        )
+        # Per-message cap on the *resulting* delta
+        cap_v = max_delta / max(stick_scale * delta_t, 1e-6)
+        vx = float(np.clip(vx, -cap_v, cap_v))
+        vy = float(np.clip(vy, -cap_v, cap_v))
+        delta_vx = vx * stick_scale * delta_t
+        delta_vy = vy * stick_scale * delta_t
+        self._integrated_stick = (
+            self._integrated_stick[0] + delta_vx,
+            self._integrated_stick[1] + delta_vy,
+        )
+
         q_seed = self._q_solution.copy()
-        for jid, target in zip(
-            self._wrist_joint_ids,
-            self._wrist_init_pos + np.array([pitch, roll]),
-        ):
-            q_seed[self._model.joints[jid].idx_q] = target
+        # stick_y → joint 4 (pitch), stick_x → joint 5 (roll)
+        q_seed[self._model.joints[self._wrist_joint_ids[0]].idx_q] = (
+            self._wrist_init_pos[0] + self._integrated_stick[1]
+        )
+        q_seed[self._model.joints[self._wrist_joint_ids[1]].idx_q] = (
+            self._wrist_init_pos[1] + self._integrated_stick[0]
+        )
         q_seed = self._clamp_joints(q_seed)
 
         q_result = self._solve_ik(target_pos, q_seed)
@@ -304,6 +369,28 @@ class TeleopIKNode(Node):
 
         self.get_logger().warn("IK did not converge within max iterations")
         return None
+
+    def _apply_stick_deadzone(
+        self, x: float, y: float, deadzone: float
+    ) -> tuple[float, float]:
+        """Apply radial deadzone then rescale to preserve full-range feel."""
+        mag = float(np.hypot(x, y))
+        if mag < deadzone or deadzone >= 1.0:
+            return 0.0, 0.0
+        scale = (mag - deadzone) / (mag * (1.0 - deadzone))
+        return x * scale, y * scale
+
+    def _stamp_to_time(self, stamp) -> float | None:
+        """Convert a builtin_interfaces/Time to a float seconds, or None if invalid."""
+        try:
+            sec = int(stamp.sec)
+            nsec = int(stamp.nanosec)
+        except (AttributeError, TypeError, ValueError):
+            return None
+        if sec == 0 and nsec == 0:
+            # Treat uninitialized stamp as invalid -> caller falls back.
+            return None
+        return float(sec) + float(nsec) * 1e-9
 
     def _clamp_joints(self, q: np.ndarray) -> np.ndarray:
         """Clamp joint values to their limits defined in the URDF."""
