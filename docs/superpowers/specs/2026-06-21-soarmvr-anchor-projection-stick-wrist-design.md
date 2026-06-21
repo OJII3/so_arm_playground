@@ -149,7 +149,8 @@ geometry_msgs/Vector2 stick
 - `Push(sample)`:
   - Header(`stamp`, `"teleop"`)を組み立て
   - `Pose(Position(sample.position), Quaternion(sample.rotation))` を組み立て
-  - `Vector2(sample.stick.x, sample.stick.y)` を組み立て
+  - `Vector2((double)sample.stick.x, (double)sample.stick.y)` を組み立て
+    (ROS 側 `geometry_msgs/Vector2` は `float64` のため Unity の `float` からキャスト)
   - `TargetPoseWithInput(header, pose, stick)` を `PublishAsync`
 
 Unity 側 msg の再生成:
@@ -182,15 +183,18 @@ Unity 側 msg の再生成:
 - `_on_target_pose` (新 `_on_target_with_input`):
   - `_active` 等の前提チェック(既存通り)
   - `delta_t = _compute_dt(msg.header.stamp)`:
-    - 初回 / 負値 / 0.5s 超 → `stick_fallback_dt`
+    - 初回 (`_last_msg_stamp is None`) / 負値 / 0.5s 超 → `stick_fallback_dt`
   - `vx_raw, vy_raw = msg.stick.x, msg.stick.y`
-  - deadzone 適用:  `|v| < deadzone` なら 0、 そうでなければリマップ
-  - `vx, vy = vx_raw * scale * delta_t, vy_raw * scale * delta_t`
-  - `_integrated_stick` の各成分に `vx, vy` を加算
-  - 1 メッセージあたりの変位安全弁: 加算結果が ±`stick_max_delta_per_msg` を超えないようクランプ
+  - deadzone 適用:  `|v| < deadzone` なら 0、 そうでなければ
+    `v = sign(v) * (|v| - deadzone) / (1.0 - deadzone)`(リマップ)
+  - 各軸で `|v| > stick_max_delta_per_msg / (scale * delta_t)` なら
+    `v` を `sign(v) * stick_max_delta_per_msg / (scale * delta_t)` にクランプ
+    (1 メッセージあたりの変位が `stick_max_delta_per_msg` を超えない安全弁)
+  - `delta_vx, delta_vy = vx * scale * delta_t, vy * scale * delta_t`
+  - `_integrated_stick = (_integrated_stick[0] + delta_vx, _integrated_stick[1] + delta_vy)`
   - 関節目標:
-    - `q_seed[j4] = clamp(wrist_init_pos[0] + integrated_stick.y, lower, upper)`(stick.y → joint 4/pitch)
-    - `q_seed[j5] = clamp(wrist_init_pos[1] + integrated_stick.x, lower, upper)`(stick.x → joint 5/roll)
+    - `q_seed[j4] = clamp(wrist_init_pos[0] + _integrated_stick[1], lower, upper)`(stick.y → joint 4/pitch)
+    - `q_seed[j5] = clamp(wrist_init_pos[1] + _integrated_stick[0], lower, upper)`(stick.x → joint 5/roll)
   - position IK は joint 1〜3 のみ(従来通り)
 - 削除:
   - `unity_quaternion_to_pitch_roll` の import と呼び出し
@@ -205,7 +209,7 @@ Unity 側 msg の再生成:
   - `TargetPoseWithInput` を `/teleop/target` に
   - `pose.position` = 積分済みの (x, y, z)
   - `pose.orientation` = identity(現状維持)
-  - `stick` = `Vector2(x=0.0, y=0.0)` 相当(`geometry_msgs/Vector2` インスタンス)
+  - `stick` = `Vector2(x=0.0, y=0.0)`(`geometry_msgs/Vector2` インスタンス、ROS 側は常にゼロで受信)
   - `header.frame_id = "world"`
   - `header.stamp` = `self.get_clock().now().to_msg()`(既存通り)
 - 旧 `PoseStamped` publish コードは削除
