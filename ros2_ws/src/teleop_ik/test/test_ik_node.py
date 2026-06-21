@@ -149,3 +149,165 @@ def test_target_pose_uses_previous_successful_solution_as_next_seed(ik_node):
     assert seeds[1][0] == pytest.approx(0.05)
     assert seeds[1][3] == pytest.approx(0.1)
     assert seeds[1][4] == pytest.approx(-0.5)
+
+
+import time
+
+from teleop_ik.msg import TargetPoseWithInput  # type: ignore[attr-defined]
+
+
+def _make_input(stick_x: float = 0.0, stick_y: float = 0.0, dt_sec: float = 0.0):
+    """Build a TargetPoseWithInput with the given stick.
+
+    dt_sec==0 → leave header.stamp at zero so fallback is used.
+    """
+    msg = TargetPoseWithInput()
+    msg.pose.orientation.w = 1.0
+    msg.stick_x = stick_x
+    msg.stick_y = stick_y
+    if dt_sec > 0.0:
+        msg.header.stamp.sec = int(time.time())
+        msg.header.stamp.nanosec = int((dt_sec - int(dt_sec)) * 1e9)
+    return msg
+
+
+def test_wrist_integrates_stick_per_message(ik_node):
+    ik_node._active = True
+    ik_node._unity_conversion = False
+    ik_node._arm_init_pos = np.zeros(3)
+    ik_node._unity_anchor_pos = np.zeros(3)
+    ik_node._q_solution = ik_node._q_current.copy()
+    ik_node._wrist_init_pos = np.array([0.0, 0.0])
+    ik_node._integrated_stick = (0.0, 0.0)
+    ik_node._last_msg_stamp = None
+    # set parameters used by the new path
+    ik_node.get_parameter = lambda name: _Parameter(
+        {
+            "ik_damping": 1e-6,
+            "ik_max_iterations": 100,
+            "ik_tolerance": 1e-4,
+            "position_scale": 1.0,
+            "stick_velocity_scale": 1.0,
+            "stick_deadzone": 0.0,
+            "stick_max_delta_per_msg": 10.0,
+            "stick_fallback_dt": 0.1,
+        }[name]
+    )
+
+    # First message: integrate (1.0, 0.5) at fallback_dt=0.1, scale=1.0
+    ik_node._on_target_with_input(_make_input(stick_x=1.0, stick_y=0.5))
+    assert ik_node._integrated_stick[0] == pytest.approx(0.1)
+    assert ik_node._integrated_stick[1] == pytest.approx(0.05)
+
+
+def test_wrist_resets_on_session_start(ik_node):
+    ik_node._active = True
+    ik_node._unity_conversion = False
+    ik_node._arm_init_pos = np.zeros(3)
+    ik_node._unity_anchor_pos = np.zeros(3)
+    ik_node._q_solution = ik_node._q_current.copy()
+    ik_node._integrated_stick = (1.23, -0.45)
+    ik_node._last_msg_stamp = None
+    ik_node.get_parameter = lambda name: _Parameter(
+        {
+            "ik_damping": 1e-6,
+            "ik_max_iterations": 100,
+            "ik_tolerance": 1e-4,
+            "position_scale": 1.0,
+            "stick_velocity_scale": 1.0,
+            "stick_deadzone": 0.0,
+            "stick_max_delta_per_msg": 10.0,
+            "stick_fallback_dt": 0.1,
+        }[name]
+    )
+
+    from std_msgs.msg import Bool
+    b = Bool()
+    b.data = True
+    ik_node._on_active(b)
+    assert ik_node._integrated_stick == (0.0, 0.0)
+    assert ik_node._last_msg_stamp is None
+
+
+def test_stick_deadzone_zeros_small_inputs(ik_node):
+    ik_node._active = True
+    ik_node._unity_conversion = False
+    ik_node._arm_init_pos = np.zeros(3)
+    ik_node._unity_anchor_pos = np.zeros(3)
+    ik_node._q_solution = ik_node._q_current.copy()
+    ik_node._wrist_init_pos = np.array([0.0, 0.0])
+    ik_node._integrated_stick = (0.0, 0.0)
+    ik_node._last_msg_stamp = None
+    ik_node.get_parameter = lambda name: _Parameter(
+        {
+            "ik_damping": 1e-6,
+            "ik_max_iterations": 100,
+            "ik_tolerance": 1e-4,
+            "position_scale": 1.0,
+            "stick_velocity_scale": 1.0,
+            "stick_deadzone": 0.1,
+            "stick_max_delta_per_msg": 10.0,
+            "stick_fallback_dt": 0.1,
+        }[name]
+    )
+
+    # 0.05 < deadzone (0.1) → no integration
+    ik_node._on_target_with_input(_make_input(stick_x=0.05, stick_y=-0.05))
+    assert ik_node._integrated_stick == (0.0, 0.0)
+
+
+def test_stick_huge_dt_clamps_to_fallback(ik_node):
+    ik_node._active = True
+    ik_node._unity_conversion = False
+    ik_node._arm_init_pos = np.zeros(3)
+    ik_node._unity_anchor_pos = np.zeros(3)
+    ik_node._q_solution = ik_node._q_current.copy()
+    ik_node._wrist_init_pos = np.array([0.0, 0.0])
+    ik_node._integrated_stick = (0.0, 0.0)
+    ik_node._last_msg_stamp = None
+    ik_node.get_parameter = lambda name: _Parameter(
+        {
+            "ik_damping": 1e-6,
+            "ik_max_iterations": 100,
+            "ik_tolerance": 1e-4,
+            "position_scale": 1.0,
+            "stick_velocity_scale": 1.0,
+            "stick_deadzone": 0.0,
+            "stick_max_delta_per_msg": 10.0,
+            "stick_fallback_dt": 0.1,
+        }[name]
+    )
+
+    # First message: dt fallback should be used since _last_msg_stamp is None
+    ik_node._on_target_with_input(_make_input(stick_x=1.0, stick_y=1.0))
+    # With fallback_dt=0.1 and scale=1.0, the deltas are 0.1 each
+    assert ik_node._integrated_stick[0] == pytest.approx(0.1)
+    assert ik_node._integrated_stick[1] == pytest.approx(0.1)
+
+
+def test_stick_max_delta_per_msg_clamp(ik_node):
+    ik_node._active = True
+    ik_node._unity_conversion = False
+    ik_node._arm_init_pos = np.zeros(3)
+    ik_node._unity_anchor_pos = np.zeros(3)
+    ik_node._q_solution = ik_node._q_current.copy()
+    ik_node._wrist_init_pos = np.array([0.0, 0.0])
+    ik_node._integrated_stick = (0.0, 0.0)
+    ik_node._last_msg_stamp = None
+    ik_node.get_parameter = lambda name: _Parameter(
+        {
+            "ik_damping": 1e-6,
+            "ik_max_iterations": 100,
+            "ik_tolerance": 1e-4,
+            "position_scale": 1.0,
+            "stick_velocity_scale": 1.0,
+            "stick_deadzone": 0.0,
+            "stick_max_delta_per_msg": 0.05,  # tight cap
+            "stick_fallback_dt": 1.0,           # large dt would otherwise blow past cap
+        }[name]
+    )
+
+    # Stick=1.0 with dt=1.0 and cap=0.05 → integration must stay within cap
+    ik_node._on_target_with_input(_make_input(stick_x=1.0, stick_y=1.0))
+    assert ik_node._integrated_stick[0] == pytest.approx(0.05)
+    assert ik_node._integrated_stick[1] == pytest.approx(0.05)
