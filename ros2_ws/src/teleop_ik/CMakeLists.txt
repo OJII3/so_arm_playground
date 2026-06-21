@@ -3,7 +3,6 @@ project(teleop_ik)
 
 find_package(Python3 REQUIRED)
 find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_python REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -32,12 +31,7 @@ install(DIRECTORY
   DESTINATION ${python_site_packages}
 )
 
-set(node_scripts
-  ik_node teleop_ik.ik_node:main
-  gamepad_node teleop_ik.gamepad_node:main
-)
-foreach(script_entry ${node_scripts})
-  list(POP_FRONT script_entry script_name script_module)
+function(install_python_console_script script_name script_module)
   set(script_path "${CMAKE_CURRENT_BINARY_DIR}/${script_name}")
   file(WRITE "${script_path}"
 "#!/usr/bin/env python3
@@ -46,7 +40,10 @@ if __name__ == '__main__':
     main()
 ")
   install(PROGRAMS "${script_path}" DESTINATION lib/${PROJECT_NAME})
-endforeach()
+endfunction()
+
+install_python_console_script(ik_node teleop_ik.ik_node)
+install_python_console_script(gamepad_node teleop_ik.gamepad_node)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
@@ -61,6 +58,10 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_ik_node
     test/test_ik_node.py
     APPEND_ENV "PYTHONPATH=${CMAKE_INSTALL_PREFIX}/${python_site_packages}"
+  )
+  ament_add_pytest_test(test_packaging
+    test/test_packaging.py
+    APPEND_ENV "TELEOP_IK_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
   )
 endif()
 
