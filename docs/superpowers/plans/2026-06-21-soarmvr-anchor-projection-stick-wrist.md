@@ -5,10 +5,10 @@
 **Goal:** Unity 側でアンカーをヨーのみ保持する投影に変更し、右スティックの入力を `teleop_ik/msg/TargetPoseWithInput` 経由で ROS 2 に渡し、IK 側でスティックを dt 積分して joint 4/5 を駆動する。既存の `/teleop/target_pose` (PoseStamped) は廃止する。
 
 **Architecture:**
-- 単一の新規 ROS msg `TargetPoseWithInput` (Header + Pose + Vector2 stick) を `teleop_ik` パッケージに追加し、`/teleop/target` で通信する。
+- 単一の新規 ROS msg `TargetPoseWithInput` (Header + Pose + float32 stick_x / float32 stick_y) を `teleop_ik` パッケージに追加し、`/teleop/target` で通信する。
 - アンカーは Unity 側で `Quaternion.LookRotation(水平投影 forward, Vector3.up)` を使い、ヨーのみ抽出する。
 - Unity 側は右コントローラの `primary2DAxis` を sample に乗せて publish。
-- ROS 側は `header.stamp` から dt を求め、deadzone → 1 メッセージあたり上限クランプ → 積分の順で `stick` を処理し、`wrist_init_pos + (stick.x → j5, stick.y → j4)` を joint 4/5 目標として position IK (joint 1〜3) に渡す。
+- ROS 側は `header.stamp` から dt を求め、deadzone → 1 メッセージあたり上限クランプ → 積分の順で `stick` を処理し、`wrist_init_pos + (stick_x → j5, stick_y → j4)` を joint 4/5 目標として position IK (joint 1〜3) に渡す。
 
 **Tech Stack:** ROS 2 Jazzy (ament_python + rosidl), Pinocchio, Unity (C#, Input System, ROSettaDDS), pytest, ROSettaDDS genmsg.
 
@@ -20,9 +20,14 @@
 
 ### New files (ROS 2)
 - `ros2_ws/src/teleop_ik/msg/TargetPoseWithInput.msg` — 新規 ROS msg
-- `ros2_ws/src/teleop_ik/CMakeLists.txt` — rosidl ビルド定義 (ament_python と並置)
+- `ros2_ws/src/teleop_ik/CMakeLists.txt` — rosidl + Python モジュール / launch / config / エントリポイントのインストール定義
 - `ros2_ws/src/teleop_ik/test/test_target_msg.py` — msg 取り込みテスト
 - (生成物) `install/teleop_ik/lib/python3.12/site-packages/teleop_ik/msg/_target_pose_with_input.py` ほか
+
+> 実装着手時に判明した ROS 2 Jazzy 制約: `geometry_msgs` には `Vector2` が存在しないため、
+> `stick` は `Vector2` でなく `float32 stick_x` / `float32 stick_y` の 2 フィールドで持つ。
+> さらに `ament_python` パッケージでは `rosidl_generate_interfaces` を呼べないため、
+> `teleop_ik` を `ament_cmake` ビルドタイプへ移行する。
 
 ### New files (Unity)
 - `SoArmVR/Assets/_SoArmVR/Msgs/teleop_ik/msg/TargetPoseWithInput.msg` — Unity 用ミラーファイル
@@ -40,7 +45,7 @@
 
 ### Modified files (Unity)
 - `SoArmVR/Assets/_SoArmVR/Input/SoArmTeleoperation.inputactions` — `Stick` アクション追加
-- `SoArmVR/Assets/_SoArmVR/Scripts/Teleoperation/TeleoperationSample.cs` — `Vector2 stick` 追加
+- `SoArmVR/Assets/_SoArmVR/Scripts/Teleoperation/TeleoperationSample.cs` — `Vector2 stick` 追加(Unity 内部では `Vector2` として扱い、publish 時に `float stick_x/stick_y` に展開)
 - `SoArmVR/Assets/_SoArmVR/Scripts/Teleoperation/TeleoperationAnchor.cs` — ヨー抽出の `Place` 実装
 - `SoArmVR/Assets/_SoArmVR/Scripts/Teleoperation/TeleoperationSession.cs` — `_stickAction` 読み取り
 - `SoArmVR/Assets/_SoArmVR/Scripts/Teleoperation/RosTeleoperationSink.cs` — 新 msg publish 化
@@ -62,43 +67,128 @@
 ```
 std_msgs/Header header
 geometry_msgs/Pose pose
-geometry_msgs/Vector2 stick
+float32 stick_x
+float32 stick_y
 ```
 
 - [ ] **Step 2: CMakeLists.txt を作成**
 
-`ros2_ws/src/teleop_ik/CMakeLists.txt` を以下の内容で作成:
+`ros2_ws/src/teleop_ik/CMakeLists.txt` を以下の内容で作成(ament_cmake に移行し、msg 生成 + Python モジュール / launch / config / エントリポイントをインストール):
 
 ```cmake
 cmake_minimum_required(VERSION 3.16)
-project(teleop_ik NONE)
+project(teleop_ik)
 
+find_package(Python3 REQUIRED)
+find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+
+string(REGEX REPLACE "^.*/lib/" "lib/" python_site_packages "${Python3_SITELIB}")
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   msg/TargetPoseWithInput.msg
   DEPENDENCIES geometry_msgs std_msgs
 )
 
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  ${PROJECT_NAME}
+  DESTINATION ${python_site_packages}
+)
+
+set(node_scripts
+  ik_node teleop_ik.ik_node:main
+  gamepad_node teleop_ik.gamepad_node:main
+)
+foreach(script_entry ${node_scripts})
+  list(POP_FRONT script_entry script_name script_module)
+  set(script_path "${CMAKE_CURRENT_BINARY_DIR}/${script_name}")
+  file(WRITE "${script_path}"
+"#!/usr/bin/env python3
+from ${script_module} import main
+if __name__ == '__main__':
+    main()
+")
+  install(PROGRAMS "${script_path}" DESTINATION lib/${PROJECT_NAME})
+endforeach()
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_target_msg
+    test/test_target_msg.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_INSTALL_PREFIX}/${python_site_packages}"
+  )
+endif()
+
 ament_package()
 ```
 
-> 注意: `ament_python` パッケージと並置する最小パターン。`setup.py` 側のビルドは変えない。
+> 既存の `setup.py` は不要になるため削除する(`ament_cmake` への完全移行)。
 
 - [ ] **Step 3: `package.xml` を更新**
 
-`ros2_ws/src/teleop_ik/package.xml` に以下を追加 (`<export>` ブロックはそのまま):
+`ros2_ws/src/teleop_ik/package.xml` を以下に置換:
 
 ```xml
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>teleop_ik</name>
+  <version>0.0.1</version>
+  <description>VR teleop IK node for SO-101 arm using Pinocchio</description>
+  <maintainer email="ojii3dev@gmail.com">OJII3</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>joy</exec_depend>
+  <exec_depend>lerobot_controller</exec_depend>
+  <exec_depend>lerobot_description</exec_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
 
   <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
 ```
 
-挿入位置は既存の `<exec_depend>...` 群の直下、 `<test_depend>...` の直前。
+- [ ] **Step 4: 旧 `setup.py` を削除**
 
-- [ ] **Step 4: colcon build 通過確認**
+```bash
+cd /home/ojii3/src/github.com/ojii3/so_arm_playground
+git rm ros2_ws/src/teleop_ik/setup.py
+```
+
+> 削除する理由: `ament_cmake` 移行により CMakeLists.txt が Python モジュールと
+> エントリポイントのインストールを担うため、`setup.py` は冗長。
+
+- [ ] **Step 5: colcon build 通過確認**
 
 ```bash
 cd ros2_ws
@@ -107,17 +197,20 @@ nix develop ../.#ros --command bash -lc 'colcon build --packages-select teleop_i
 
 期待結果: `Starting >>> teleop_ik` → `Finished >>> teleop_ik` がエラー無しで完了。
 
-> 備考: フルテストも走らせるなら `--packages-select teleop_ik` で `colcon test` まで実施。今回は msg 追加のみなので build までで OK。
-
-- [ ] **Step 5: コミット**
+- [ ] **Step 6: コミット**
 
 ```bash
 cd /home/ojii3/src/github.com/ojii3/so_arm_playground
 git add ros2_ws/src/teleop_ik/msg/TargetPoseWithInput.msg \
         ros2_ws/src/teleop_ik/CMakeLists.txt \
         ros2_ws/src/teleop_ik/package.xml
-git commit -m "feat(teleop_ik): add TargetPoseWithInput msg and rosidl build"
+git rm ros2_ws/src/teleop_ik/setup.py
+git commit -m "feat(teleop_ik): add TargetPoseWithInput msg and migrate to ament_cmake"
 ```
+
+> メモ: 既存の `e14b740` / `1fef7d9` / `e26a253` / `dda7736` でこのタスクの主要な
+> 作業は既にコミット済み(Task 2 着手時に implementer が先回り)。本タスクは
+> 設計ドキュメントの更新と `setup.py` 削除のクリーンアップの位置づけ。
 
 ---
 
@@ -143,17 +236,18 @@ def test_target_pose_with_input_instantiation():
     msg = TargetPoseWithInput()
     assert hasattr(msg, "header")
     assert hasattr(msg, "pose")
-    assert hasattr(msg, "stick")
-    assert msg.stick.x == 0.0
-    assert msg.stick.y == 0.0
+    assert hasattr(msg, "stick_x")
+    assert hasattr(msg, "stick_y")
+    assert msg.stick_x == 0.0
+    assert msg.stick_y == 0.0
 
 
 def test_target_pose_with_input_set_fields():
     msg = TargetPoseWithInput()
-    msg.stick.x = 0.5
-    msg.stick.y = -0.25
-    assert msg.stick.x == 0.5
-    assert msg.stick.y == -0.25
+    msg.stick_x = 0.5
+    msg.stick_y = -0.25
+    assert msg.stick_x == 0.5
+    assert msg.stick_y == -0.25
 ```
 
 - [ ] **Step 2: テストを colcon test で実行**
@@ -355,8 +449,8 @@ def _make_input(stick_x: float = 0.0, stick_y: float = 0.0, dt_sec: float = 0.0)
     """
     msg = TargetPoseWithInput()
     msg.pose.orientation.w = 1.0
-    msg.stick.x = stick_x
-    msg.stick.y = stick_y
+    msg.stick_x = stick_x
+    msg.stick_y = stick_y
     if dt_sec > 0.0:
         msg.header.stamp.sec = int(time.time())
         msg.header.stamp.nanosec = int((dt_sec - int(dt_sec)) * 1e9)
@@ -695,7 +789,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
         target_pos = self._arm_init_pos + delta
 
         vx, vy = self._apply_stick_deadzone(
-            float(msg.stick.x), float(msg.stick.y), deadzone
+            float(msg.stick_x), float(msg.stick_y), deadzone
         )
         # Per-message cap on the *resulting* delta
         cap_v = max_delta / max(stick_scale * delta_t, 1e-6)
@@ -709,7 +803,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
         )
 
         q_seed = self._q_solution.copy()
-        # stick.y → joint 4 (pitch), stick.x → joint 5 (roll)
+        # stick_y → joint 4 (pitch), stick_x → joint 5 (roll)
         q_seed[self._model.joints[self._wrist_joint_ids[0]].idx_q] = (
             self._wrist_init_pos[0] + self._integrated_stick[1]
         )
@@ -822,7 +916,7 @@ def test_target_uses_previous_successful_solution_as_next_seed(ik_node):
     second.pose.orientation.w = 1.0
     ik_node._on_target_pose(second)
 
-    # First non-anchor msg: wrist init still used (stick=0)
+    # First non-anchor msg: wrist init still used (stick_x=stick_y=0)
     assert seeds[0][3] == pytest.approx(0.1)
     assert seeds[0][4] == pytest.approx(-0.2)
     # Second msg uses the previous solution as seed
@@ -863,7 +957,6 @@ git commit -m "test(teleop_ik): align previous-solution test with stick-driven w
 """Gamepad teleop node: converts Joy input to IK target pose via velocity control."""
 
 import rclpy
-from geometry_msgs.msg import Vector2
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool, Float64
@@ -893,7 +986,7 @@ from teleop_ik.msg import TargetPoseWithInput
 `_timer_callback` 内の `# Publish target pose (ROS frame, relative to session start)` 以降の `pose` 組み立て・publish 部分を以下に置換:
 
 ```python
-        # Publish target pose + stick (stick=0 for gamepad; wrist stays neutral)
+        # Publish target pose + stick (stick_x=stick_y=0 for gamepad; wrist stays neutral)
         msg = TargetPoseWithInput()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = "world"
@@ -901,7 +994,8 @@ from teleop_ik.msg import TargetPoseWithInput
         msg.pose.position.y = self._target_y
         msg.pose.position.z = self._target_z
         msg.pose.orientation.w = 1.0
-        msg.stick = Vector2(x=0.0, y=0.0)
+        msg.stick_x = 0.0
+        msg.stick_y = 0.0
         self._target_pub.publish(msg)
 
         self._gripper_pub.publish(Float64(data=self._gripper_value))
@@ -938,7 +1032,8 @@ git commit -m "feat(teleop_ik): publish TargetPoseWithInput from gamepad_node"
 ```
 std_msgs/Header header
 geometry_msgs/Pose pose
-geometry_msgs/Vector2 stick
+float32 stick_x
+float32 stick_y
 ```
 
 > ROS 側と完全一致させる(2026-06-13 設計書 §3.2 のミラーパターン)。
@@ -1213,7 +1308,6 @@ git commit -m "feat(soarmvr): read right-stick input into TeleoperationSample"
 ```csharp
 using ROSettaDDS.Msgs.TeleopIk;
 using RosTargetPoseWithInput = ROSettaDDS.Msgs.TeleopIk.TargetPoseWithInput;
-using RosVector2 = ROSettaDDS.Msgs.Geometry.Vector2;
 ```
 
 > 名前空間 `ROSettaDDS.Msgs.TeleopIk` は Task 10 の生成物(パッケージ名 `teleop_ik` → パスカルケース `TeleopIk`)に合わせる。実際の生成物の namespace を Task 10 完了時に確認し、必要なら修正する。
@@ -1273,7 +1367,8 @@ using RosVector2 = ROSettaDDS.Msgs.Geometry.Vector2;
                     new Point(sample.position.x, sample.position.y, sample.position.z),
                     new RosQuaternion(sample.rotation.x, sample.rotation.y, sample.rotation.z, sample.rotation.w)
                 ),
-                new RosVector2((double)sample.stick.x, (double)sample.stick.y)
+                sample.stick.x,
+                sample.stick.y
             );
 
             try
