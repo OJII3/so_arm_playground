@@ -1,10 +1,11 @@
 """Gamepad teleop node: converts Joy input to IK target pose via velocity control."""
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool, Float64
+
+from teleop_ik.msg import TargetPoseWithInput
 
 # PS3 DualShock 3 default mapping (Linux kernel driver)
 # Axes: 0=LX, 1=LY, 2=RX, 3=RY
@@ -65,7 +66,9 @@ class GamepadTeleopNode(Node):
 
         self.create_subscription(Joy, "/joy", self._on_joy, 10)
 
-        self._pose_pub = self.create_publisher(PoseStamped, "/teleop/target_pose", 10)
+        self._target_pub = self.create_publisher(
+            TargetPoseWithInput, "/teleop/target", 10
+        )
         self._active_pub = self.create_publisher(Bool, "/teleop/active", 10)
         self._gripper_pub = self.create_publisher(Float64, "/teleop/gripper", 10)
 
@@ -137,15 +140,17 @@ class GamepadTeleopNode(Node):
         if self._safe_button(joy, self._btn_gripper_close):
             self._gripper_value = max(0.0, self._gripper_value - gripper_speed * self._dt)
 
-        # Publish target pose (ROS frame, relative to session start)
-        pose = PoseStamped()
-        pose.header.stamp = self.get_clock().now().to_msg()
-        pose.header.frame_id = "world"
-        pose.pose.position.x = self._target_x
-        pose.pose.position.y = self._target_y
-        pose.pose.position.z = self._target_z
-        pose.pose.orientation.w = 1.0
-        self._pose_pub.publish(pose)
+        # Publish target pose + stick (stick_x=stick_y=0 for gamepad; wrist stays neutral)
+        msg = TargetPoseWithInput()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "world"
+        msg.pose.position.x = self._target_x
+        msg.pose.position.y = self._target_y
+        msg.pose.position.z = self._target_z
+        msg.pose.orientation.w = 1.0
+        msg.stick_x = 0.0
+        msg.stick_y = 0.0
+        self._target_pub.publish(msg)
 
         self._gripper_pub.publish(Float64(data=self._gripper_value))
 

@@ -2,71 +2,23 @@ import math
 
 import pytest
 
-from teleop_ik.coordinate_utils import unity_quaternion_to_pitch_roll
+from teleop_ik.coordinate_utils import unity_position_to_ros, unity_quaternion_to_ros
 
 
-def _axis_angle_quaternion(axis, angle):
-    half = angle / 2.0
-    scale = math.sin(half)
-    return (
-        axis[0] * scale,
-        axis[1] * scale,
-        axis[2] * scale,
-        math.cos(half),
-    )
+def test_unity_position_to_ros_axis_mapping():
+    ros = unity_position_to_ros(1.0, 2.0, 3.0, scale=1.0)
+    assert ros[0] == pytest.approx(3.0)
+    assert ros[1] == pytest.approx(-1.0)
+    assert ros[2] == pytest.approx(2.0)
 
 
-def _multiply_quaternions(left, right):
-    lx, ly, lz, lw = left
-    rx, ry, rz, rw = right
-    return (
-        lw * rx + lx * rw + ly * rz - lz * ry,
-        lw * ry - lx * rz + ly * rw + lz * rx,
-        lw * rz + lx * ry - ly * rx + lz * rw,
-        lw * rw - lx * rx - ly * ry - lz * rz,
-    )
+def test_unity_position_to_ros_applies_scale():
+    ros = unity_position_to_ros(1.0, 2.0, 3.0, scale=2.0)
+    assert ros[0] == pytest.approx(6.0)
+    assert ros[1] == pytest.approx(-2.0)
+    assert ros[2] == pytest.approx(4.0)
 
 
-def test_unity_local_pitch_maps_from_x_rotation():
-    quaternion = _axis_angle_quaternion((1.0, 0.0, 0.0), 0.4)
-
-    pitch, roll = unity_quaternion_to_pitch_roll(*quaternion)
-
-    assert pitch == pytest.approx(0.4)
-    assert roll == pytest.approx(0.0)
-
-
-def test_unity_local_roll_maps_from_z_rotation():
-    quaternion = _axis_angle_quaternion((0.0, 0.0, 1.0), -0.3)
-
-    pitch, roll = unity_quaternion_to_pitch_roll(*quaternion)
-
-    assert pitch == pytest.approx(0.0)
-    assert roll == pytest.approx(-0.3)
-
-
-def test_unity_local_yaw_is_ignored():
-    quaternion = _axis_angle_quaternion((0.0, 1.0, 0.0), 0.5)
-
-    pitch, roll = unity_quaternion_to_pitch_roll(*quaternion)
-
-    assert pitch == pytest.approx(0.0)
-    assert roll == pytest.approx(0.0)
-
-
-def test_unity_local_pitch_and_roll_are_extracted_when_yaw_is_present():
-    pitch = 0.4
-    roll = -0.3
-    yaw = 0.5
-    quaternion = _multiply_quaternions(
-        _axis_angle_quaternion((0.0, 1.0, 0.0), yaw),
-        _multiply_quaternions(
-            _axis_angle_quaternion((1.0, 0.0, 0.0), pitch),
-            _axis_angle_quaternion((0.0, 0.0, 1.0), roll),
-        ),
-    )
-
-    actual_pitch, actual_roll = unity_quaternion_to_pitch_roll(*quaternion)
-
-    assert actual_pitch == pytest.approx(pitch)
-    assert actual_roll == pytest.approx(roll)
+def test_unity_quaternion_to_ros_flips_w_for_handedness():
+    ros_q = unity_quaternion_to_ros(0.0, 0.0, 0.0, 1.0)
+    assert ros_q[3] == pytest.approx(-1.0)

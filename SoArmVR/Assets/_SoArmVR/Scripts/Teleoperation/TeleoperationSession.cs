@@ -28,6 +28,9 @@ namespace SoArmVR.Teleoperation
         [SerializeField, Tooltip("グリッパ開閉量（右トリガー 0..1）")]
         InputActionProperty _gripperAction;
 
+        [SerializeField, Tooltip("スティック入力(右親指スティック -1..1)")]
+        InputActionProperty _stickAction;
+
         ITeleoperationSink _sink;
         bool _active;
         int _sampleId;
@@ -43,12 +46,14 @@ namespace SoArmVR.Teleoperation
         {
             _teleoperateAction.action?.Enable();
             _gripperAction.action?.Enable();
+            _stickAction.action?.Enable();
         }
 
         void OnDisable()
         {
             _teleoperateAction.action?.Disable();
             _gripperAction.action?.Disable();
+            _stickAction.action?.Disable();
             if (_active)
                 EndSession();
         }
@@ -96,6 +101,7 @@ namespace SoArmVR.Teleoperation
                 position = localPosition,
                 rotation = localRotation,
                 gripper = _gripperAction.action != null ? _gripperAction.action.ReadValue<float>() : 0f,
+                stick = _stickAction.action != null ? _stickAction.action.ReadValue<Vector2>() : Vector2.zero,
             };
             _sink?.Push(in sample);
         }

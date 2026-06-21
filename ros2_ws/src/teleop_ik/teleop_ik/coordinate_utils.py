@@ -34,24 +34,3 @@ def unity_quaternion_to_ros(
     ros_qz = y
     ros_qw = -w  # handedness flip
     return np.array([ros_qx, ros_qy, ros_qz, ros_qw])
-
-
-def unity_quaternion_to_pitch_roll(
-    x: float, y: float, z: float, w: float
-) -> tuple[float, float]:
-    """Return Unity-local pitch (X) and roll (Z) using Unity's Z-X-Y order."""
-    quaternion = np.array([x, y, z, w], dtype=float)
-    norm = np.linalg.norm(quaternion)
-    if norm == 0.0:
-        return 0.0, 0.0
-
-    quaternion /= norm
-    x, y, z, w = quaternion
-
-    matrix_10 = 2.0 * (x * y + z * w)
-    matrix_11 = 1.0 - 2.0 * (x * x + z * z)
-    matrix_12 = 2.0 * (y * z - x * w)
-
-    pitch = math.asin(float(np.clip(-matrix_12, -1.0, 1.0)))
-    roll = math.atan2(matrix_10, matrix_11)
-    return pitch, roll

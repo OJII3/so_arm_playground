@@ -25,5 +25,8 @@ namespace SoArmVR.Teleoperation
 
         /// <summary>グリッパ開閉量（0..1, 右トリガー）。</summary>
         public float gripper;
+
+        /// <summary>右コントローラの primary2DAxis(右親指スティック)の生入力 (-1..1, x/y)。</summary>
+        public Vector2 stick;
     }
 }
