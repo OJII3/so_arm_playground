@@ -375,7 +375,7 @@ class TeleopIKNode(Node):
     ) -> tuple[float, float]:
         """Apply radial deadzone then rescale to preserve full-range feel."""
         mag = float(np.hypot(x, y))
-        if mag < deadzone or deadzone >= 1.0:
+        if mag <= deadzone or mag < 1e-9 or deadzone >= 1.0:
             return 0.0, 0.0
         scale = (mag - deadzone) / (mag * (1.0 - deadzone))
         return x * scale, y * scale

@@ -116,13 +116,27 @@ def test_solve_ik_keeps_wrist_joint_targets_fixed(ik_node):
     assert result[4] == pytest.approx(-0.3)
 
 
-def test_target_pose_uses_previous_successful_solution_as_next_seed(ik_node):
+def test_target_uses_previous_successful_solution_as_next_seed(ik_node):
     ik_node._active = True
     ik_node._unity_conversion = False
     ik_node._arm_init_pos = np.zeros(3)
     ik_node._unity_anchor_pos = np.zeros(3)
     ik_node._q_solution = ik_node._q_current.copy()
     ik_node._wrist_init_pos = np.array([0.1, -0.2])
+    ik_node._integrated_stick = (0.0, 0.0)
+    ik_node._last_msg_stamp = None
+    ik_node.get_parameter = lambda name: _Parameter(
+        {
+            "ik_damping": 1e-6,
+            "ik_max_iterations": 100,
+            "ik_tolerance": 1e-4,
+            "position_scale": 1.0,
+            "stick_velocity_scale": 0.0,  # disable stick for this test
+            "stick_deadzone": 0.0,
+            "stick_max_delta_per_msg": 10.0,
+            "stick_fallback_dt": 0.0,
+        }[name]
+    )
     seeds = []
 
     def solve(_target_position, seed):
@@ -134,21 +148,23 @@ def test_target_pose_uses_previous_successful_solution_as_next_seed(ik_node):
     ik_node._solve_ik = solve
     ik_node._publish_arm_trajectory = lambda _q: None
 
-    first = PoseStamped()
-    first.pose.orientation.x = math.sin(0.4 / 2.0)
-    first.pose.orientation.w = math.cos(0.4 / 2.0)
-    ik_node._on_target_pose(first)
+    from teleop_ik.msg import TargetPoseWithInput  # type: ignore[attr-defined]
+    first = TargetPoseWithInput()
+    first.pose.orientation.w = 1.0
+    ik_node._on_target_with_input(first)
+    # Anchor set, no IK solved this iteration.
 
-    second = PoseStamped()
-    second.pose.orientation.z = math.sin(-0.3 / 2.0)
-    second.pose.orientation.w = math.cos(-0.3 / 2.0)
-    ik_node._on_target_pose(second)
+    second = TargetPoseWithInput()
+    second.pose.orientation.w = 1.0
+    ik_node._on_target_with_input(second)
 
-    assert seeds[0][3] == pytest.approx(0.5)
+    # First non-anchor msg: wrist init still used (stick_x=stick_y=0)
+    assert seeds[0][3] == pytest.approx(0.1)
     assert seeds[0][4] == pytest.approx(-0.2)
+    # Second msg uses the previous solution as seed
     assert seeds[1][0] == pytest.approx(0.05)
     assert seeds[1][3] == pytest.approx(0.1)
-    assert seeds[1][4] == pytest.approx(-0.5)
+    assert seeds[1][4] == pytest.approx(-0.2)
 
 
 import time
