@@ -315,13 +315,18 @@ git commit -m "feat(teleop_ik): add stick integration parameters"
 
 ---
 
-## Task 4: `coordinate_utils.unity_quaternion_to_pitch_roll` を削除 (TDD 反転)
+## Task 4: `coordinate_utils.unity_quaternion_to_pitch_roll` の使用箇所を ik_node 側で除去 (TDD 反転)
+
+> **重要**: このタスクは `unity_quaternion_to_pitch_roll` 関数の **削除** ではなく、
+> `ik_node.py` からの **使用箇所除去** のみを行う(関数自体は Task 6 で
+> `ik_node.py` のスティック駆動化と同時に削除する)。
+>
+> 理由: `ik_node.py` のテストが `coordinate_utils` 経由で関数を import するため、
+> テスト収集時に `ik_node.py` 内の `unity_quaternion_to_pitch_roll` 呼び出しも
+> 評価される。先に `ik_node.py` 側を切り替えてから関数を削除するのが安全。
 
 **Files:**
 - Modify: `ros2_ws/src/teleop_ik/test/test_coordinate_utils.py`
-- Modify: `ros2_ws/src/teleop_ik/teleop_ik/coordinate_utils.py`
-
-> TDD としては「削除ターゲットが存在しない」ことをテストで担保する代わりに、関連テストを先に削除してから本体を削除する。
 
 - [ ] **Step 1: 既存テストから pitch/roll 関連を削除**
 
@@ -354,75 +359,28 @@ def test_unity_quaternion_to_ros_flips_w_for_handedness():
     assert ros_q[3] == pytest.approx(-1.0)
 ```
 
-- [ ] **Step 2: テストが pass することを確認 (新テストは通る、削除対象は無い)**
+> 補足: 現時点では `unity_quaternion_to_pitch_roll` 関数を import する
+> 呼び出しは `ik_node.py` のみ。Task 6 で ik_node を書き換えるため、
+> ここでは `test_coordinate_utils.py` だけクリーンアップする。
+
+- [ ] **Step 2: テストが pass することを確認**
 
 ```bash
 cd ros2_ws
-nix develop ../.#ros --command bash -lc 'colcon build --packages-select teleop_ik && colcon test --packages-select teleop_ik --pytest-args test_coordinate_utils.py'
+nix develop ../.#ros --command bash -lc 'colcon build --packages-select teleop_ik --cmake-args -DBUILD_TESTING=ON && colcon test --packages-select teleop_ik --pytest-args test_coordinate_utils.py'
 ```
 
 期待結果: pass (3 件)。
 
-- [ ] **Step 3: `coordinate_utils.py` から `unity_quaternion_to_pitch_roll` を削除**
-
-`ros2_ws/src/teleop_ik/teleop_ik/coordinate_utils.py` を以下に置換:
-
-```python
-"""Coordinate conversion utilities: Unity (left-hand, Y-up) <-> ROS (right-hand, Z-up)."""
-
-import math
-
-import numpy as np
-
-
-def unity_position_to_ros(
-    x: float, y: float, z: float, scale: float = 1.0
-) -> np.ndarray:
-    """Convert Unity position (X-right, Y-up, Z-forward) to ROS (X-forward, Y-left, Z-up).
-
-    Mapping:
-        ros_x =  unity_z
-        ros_y = -unity_x
-        ros_z =  unity_y
-    """
-    return np.array([z * scale, -x * scale, y * scale])
-
-
-def unity_quaternion_to_ros(
-    x: float, y: float, z: float, w: float
-) -> np.ndarray:
-    """Convert Unity quaternion to ROS quaternion.
-
-    Unity is left-handed Y-up, ROS is right-handed Z-up.
-    Apply the same axis remapping as position to the quaternion vector part.
-
-    Returns [qx, qy, qz, qw] in ROS convention.
-    """
-    # Vector part follows the same axis mapping as position
-    ros_qx = z
-    ros_qy = -x
-    ros_qz = y
-    ros_qw = -w  # handedness flip
-    return np.array([ros_qx, ros_qy, ros_qz, ros_qw])
-```
-
-- [ ] **Step 4: テスト再実行で pass を確認**
-
-```bash
-cd ros2_ws
-nix develop ../.#ros --command bash -lc 'colcon build --packages-select teleop_ik && colcon test --packages-select teleop_ik --pytest-args test_coordinate_utils.py'
-```
-
-期待結果: pass。
-
-- [ ] **Step 5: コミット**
+- [ ] **Step 3: コミット**
 
 ```bash
 cd /home/ojii3/src/github.com/ojii3/so_arm_playground
-git add ros2_ws/src/teleop_ik/teleop_ik/coordinate_utils.py \
-        ros2_ws/src/teleop_ik/test/test_coordinate_utils.py
-git commit -m "refactor(teleop_ik): drop unity_quaternion_to_pitch_roll (replaced by stick integration)"
+git add ros2_ws/src/teleop_ik/test/test_coordinate_utils.py
+git commit -m "test(teleop_ik): drop unity_quaternion_to_pitch_roll tests (function still in use by ik_node)"
 ```
+
+> 関数本体と `ik_node.py` 側の呼び出しは Task 6 で同時に削除する。
 
 ---
 
