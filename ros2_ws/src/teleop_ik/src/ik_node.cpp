@@ -314,19 +314,22 @@ void TeleopIKNode::on_active(bool active)
       arm_init_pos_ = data_.oMf[ee_frame_id_].translation();
       unity_anchor_set_ = false;
       q_solution_ = q_current_;
-      // wrist 初期角 = q_current_ の joint 4/5 値. 関節 4 → stick_y (wrist_init_pos.y()),
-      // 関節 5 → stick_x (wrist_init_pos.x()) という軸マッピングは on_target_with_input と同じ.
+      // wrist 初期角 = q_current_ の joint 4/5 値. 関節 4 → stick_y
+      // (wrist_init_pos.y()), 関節 5 → stick_x (wrist_init_pos.x())
+      // という軸マッピングは on_target_with_input と同じ.
+      // joint 4 は arm_joint_ids_[3], joint 5 は wrist_joint_ids_[0] (= arm_joint_ids_[4]).
       wrist_init_pos_.setZero();
-      if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
-        const auto idx_q_0 = model_.joints[wrist_joint_ids_[0]].idx_q();
-        if (idx_q_0 >= 0 && static_cast<Eigen::Index>(idx_q_0) < q_current_.size()) {
-          wrist_init_pos_.y() = q_current_[idx_q_0];  // stick_y → joint 4
+      const auto jid_4 = arm_joint_ids_[3];
+      if (jid_4 != static_cast<pinocchio::JointIndex>(-1)) {
+        const auto idx_q_4 = model_.joints[jid_4].idx_q();
+        if (idx_q_4 >= 0 && static_cast<Eigen::Index>(idx_q_4) < q_current_.size()) {
+          wrist_init_pos_.y() = q_current_[idx_q_4];  // stick_y → joint 4
         }
       }
-      if (wrist_joint_ids_[1] != static_cast<pinocchio::JointIndex>(-1)) {
-        const auto idx_q_1 = model_.joints[wrist_joint_ids_[1]].idx_q();
-        if (idx_q_1 >= 0 && static_cast<Eigen::Index>(idx_q_1) < q_current_.size()) {
-          wrist_init_pos_.x() = q_current_[idx_q_1];  // stick_x → joint 5
+      if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
+        const auto idx_q_5 = model_.joints[wrist_joint_ids_[0]].idx_q();
+        if (idx_q_5 >= 0 && static_cast<Eigen::Index>(idx_q_5) < q_current_.size()) {
+          wrist_init_pos_.x() = q_current_[idx_q_5];  // stick_x → joint 5
         }
       }
       integrated_stick_.setZero();
