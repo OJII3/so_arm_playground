@@ -99,26 +99,6 @@ target_link_libraries(teleop_ik_core pinocchio::pinocchio teleop_ik__rosidl_type
 ament_target_dependencies(teleop_ik_core
   rclcpp geometry_msgs sensor_msgs trajectory_msgs builtin_interfaces)
 
-if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(test_coordinate_utils_cpp test/test_coordinate_utils.cpp)
-  target_link_libraries(test_coordinate_utils_cpp teleop_ik_core)
-  ament_add_gtest(test_target_msg_cpp test/test_target_msg.cpp)
-  ament_target_dependencies(test_target_msg_cpp rosidl_typesupport_cpp)
-  target_link_libraries(test_target_msg_cpp teleop_ik__rosidl_typesupport_cpp)
-  ament_add_gtest(test_ik_node_helpers_cpp test/test_ik_node_helpers.cpp)
-  target_link_libraries(test_ik_node_helpers_cpp teleop_ik_core)
-  ament_target_dependencies(test_ik_node_helpers_cpp
-    rclcpp geometry_msgs trajectory_msgs builtin_interfaces pinocchio)
-  # 実 SO-101 URDF (xacro 展開済) を TELEOP_IK_TEST_URDF_PATH に注入.
-  # CMake のビルド時 xacro を呼べないため, 生成済みファイルを使う前提.
-  # ファイルがなければテストは SKIP される.
-  set(_urdf_xacro "${CMAKE_CURRENT_SOURCE_DIR}/test/so101.urdf")
-  set_tests_properties(test_ik_node_helpers_cpp PROPERTIES
-    ENVIRONMENT "TELEOP_IK_TEST_URDF_PATH=${_urdf_xacro}"
-    SKIP_RETURN_CODE 77)
-endif()
-
 install(TARGETS teleop_ik_core
   EXPORT ${PROJECT_NAME}Targets
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -140,7 +120,48 @@ ament_target_dependencies(teleop_ik_node
 target_link_libraries(teleop_ik_node teleop_ik_core pinocchio::pinocchio teleop_ik__rosidl_typesupport_cpp)
 install(TARGETS teleop_ik_node RUNTIME DESTINATION lib/${PROJECT_NAME})
 
+# --- gamepad_teleop_node executable (Task 15) ---
+# class 実装は teleop_ik_gamepad ライブラリ, main は executable に分離.
+add_library(teleop_ik_gamepad SHARED
+  src/gamepad_node.cpp
+)
+target_include_directories(teleop_ik_gamepad PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
+)
+ament_target_dependencies(teleop_ik_gamepad
+  rclcpp std_msgs sensor_msgs rosidl_typesupport_cpp)
+target_link_libraries(teleop_ik_gamepad teleop_ik__rosidl_typesupport_cpp)
+
+add_executable(gamepad_teleop_node
+  src/gamepad_node_main.cpp
+)
+target_link_libraries(gamepad_teleop_node teleop_ik_gamepad)
+install(TARGETS gamepad_teleop_node RUNTIME DESTINATION lib/${PROJECT_NAME})
+
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
 ament_export_dependencies(Eigen3 pinocchio rclcpp)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_coordinate_utils_cpp test/test_coordinate_utils.cpp)
+  target_link_libraries(test_coordinate_utils_cpp teleop_ik_core)
+  ament_add_gtest(test_target_msg_cpp test/test_target_msg.cpp)
+  ament_target_dependencies(test_target_msg_cpp rosidl_typesupport_cpp)
+  target_link_libraries(test_target_msg_cpp teleop_ik__rosidl_typesupport_cpp)
+  ament_add_gtest(test_ik_node_helpers_cpp test/test_ik_node_helpers.cpp)
+  target_link_libraries(test_ik_node_helpers_cpp teleop_ik_core)
+  ament_target_dependencies(test_ik_node_helpers_cpp
+    rclcpp geometry_msgs trajectory_msgs builtin_interfaces pinocchio)
+  set(_urdf_xacro "${CMAKE_CURRENT_SOURCE_DIR}/test/so101.urdf")
+  set_tests_properties(test_ik_node_helpers_cpp PROPERTIES
+    ENVIRONMENT "TELEOP_IK_TEST_URDF_PATH=${_urdf_xacro}"
+    SKIP_RETURN_CODE 77)
+  ament_add_gtest(test_gamepad_node_cpp test/test_gamepad_node.cpp)
+  ament_target_dependencies(test_gamepad_node_cpp rclcpp sensor_msgs rosidl_typesupport_cpp)
+  target_include_directories(test_gamepad_node_cpp PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(test_gamepad_node_cpp teleop_ik_gamepad teleop_ik__rosidl_typesupport_cpp)
+endif()
 
 ament_package()
