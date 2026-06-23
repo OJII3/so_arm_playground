@@ -60,8 +60,7 @@ pkgs.mkShell {
           xacro
 
           joy
-          python3Packages.coal
-          python3Packages.pinocchio
+          pinocchio
         ]
       )
       ++ builtins.attrValues extraPkgs

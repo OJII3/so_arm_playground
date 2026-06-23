@@ -34,7 +34,7 @@ def generate_launch_description():
 
     ik_node = Node(
         package="teleop_ik",
-        executable="ik_node",
+        executable="teleop_ik_node",
         name="teleop_ik_node",
         output="screen",
         parameters=[
