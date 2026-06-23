@@ -95,6 +95,9 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_coordinate_utils_cpp test/test_coordinate_utils.cpp)
   target_link_libraries(test_coordinate_utils_cpp teleop_ik_core)
+  ament_add_gtest(test_target_msg_cpp test/test_target_msg.cpp)
+  ament_target_dependencies(test_target_msg_cpp rosidl_typesupport_cpp)
+  target_link_libraries(test_target_msg_cpp teleop_ik__rosidl_typesupport_cpp)
 endif()
 
 install(TARGETS teleop_ik_core
