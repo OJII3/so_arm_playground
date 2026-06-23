@@ -427,9 +427,14 @@ bool TeleopIKNode::on_target_with_input(
     q_solution_ = *result;
     // joint 5 はソルバ外. stick_x 由来の FK 値を q_solution_ に注入して
     // make_arm_trajectory がそのまま publish できるようにする.
+    // 注入値は joint limit に必ず clamp する (旧実装の clamp_joints 経由と等価).
     if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
       const auto idx_q_5 = model_.joints[wrist_joint_ids_[0]].idx_q();
-      q_solution_[idx_q_5] = wrist_init_pos_.x() + integrated_stick_.x();
+      const double raw_5 = wrist_init_pos_.x() + integrated_stick_.x();
+      q_solution_[idx_q_5] = std::clamp(
+          raw_5,
+          model_.lowerPositionLimit[idx_q_5],
+          model_.upperPositionLimit[idx_q_5]);
     }
     return true;
   }
