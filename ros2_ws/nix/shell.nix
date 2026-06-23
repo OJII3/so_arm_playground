@@ -60,6 +60,7 @@ pkgs.mkShell {
           xacro
 
           joy
+          pinocchio
           python3Packages.coal
           python3Packages.pinocchio
         ]
