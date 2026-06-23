@@ -1,0 +1,81 @@
+// teleop_ik/include/teleop_ik/ik_node.hpp
+#ifndef TELEOP_IK__IK_NODE_HPP_
+#define TELEOP_IK__IK_NODE_HPP_
+
+#include <array>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include <Eigen/Core>
+#include <builtin_interfaces/msg/time.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include <pinocchio/multibody/data.hpp>
+#include <pinocchio/multibody/model.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
+
+namespace teleop_ik
+{
+
+class TeleopIKNode : public rclcpp::Node
+{
+ public:
+  // テスト用ファクトリ. URDF XML を直接渡して部分初期化する.
+  static std::unique_ptr<TeleopIKNode> make_for_test(
+      const std::string & urdf_xml, const std::string & ee_frame_name = "ee");
+
+  TeleopIKNode();
+
+  // 純粋ヘルパー (テストから直接呼ぶ).
+  Eigen::VectorXd clamp_joints(const Eigen::VectorXd & q) const;
+  std::pair<double, double> apply_stick_deadzone(
+      double x, double y, double deadzone) const;
+  std::optional<double> stamp_to_time(const builtin_interfaces::msg::Time & stamp) const;
+  std::optional<Eigen::VectorXd> solve_ik(
+      const Eigen::Vector3d & target_position, const Eigen::VectorXd & q_seed);
+
+  // セッション管理 + 統合 callback
+  void on_active(bool active);
+  void on_joint_state(const std::string & name, double position);
+  void on_target_with_input(
+      const geometry_msgs::msg::Pose & pose,
+      float stick_x, float stick_y,
+      const builtin_interfaces::msg::Time & stamp,
+      double position_scale,
+      double stick_velocity_scale,
+      double stick_deadzone,
+      double stick_max_delta_per_msg,
+      double stick_fallback_dt,
+      bool unity_conversion);
+  void on_gripper(double value);
+
+  trajectory_msgs::msg::JointTrajectory make_arm_trajectory(
+      const Eigen::VectorXd & q, double trajectory_time_from_start) const;
+  trajectory_msgs::msg::JointTrajectory make_gripper_trajectory(
+      double angle, double trajectory_time_from_start) const;
+
+  // メンバ: テストから状態を組み立てるため public としている.
+  pinocchio::Model model_;
+  pinocchio::Data data_;
+  pinocchio::FrameIndex ee_frame_id_ = 0;
+  std::array<pinocchio::JointIndex, 5> arm_joint_ids_{};
+  std::array<pinocchio::JointIndex, 3> position_joint_ids_{};
+  std::array<pinocchio::JointIndex, 2> wrist_joint_ids_{};
+
+  // セッション状態 (active 中のみ有効).
+  bool active_ = false;
+  Eigen::Vector3d arm_init_pos_ = Eigen::Vector3d::Zero();
+  Eigen::Vector3d unity_anchor_pos_ = Eigen::Vector3d::Zero();
+  bool unity_anchor_set_ = false;
+  Eigen::Vector2d wrist_init_pos_ = Eigen::Vector2d::Zero();
+  Eigen::Vector2d integrated_stick_ = Eigen::Vector2d::Zero();
+  std::optional<double> last_msg_stamp_;
+  Eigen::VectorXd q_current_;
+  Eigen::VectorXd q_solution_;
+};
+
+}  // namespace teleop_ik
+
+#endif  // TELEOP_IK__IK_NODE_HPP_

@@ -80,9 +80,15 @@ endif()
 # --- C++ implementation (added incrementally) ---
 find_package(Eigen3 REQUIRED)
 find_package(pinocchio REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 
 add_library(teleop_ik_core SHARED
   src/coordinate_utils.cpp
+  src/ik_node.cpp
 )
 target_include_directories(teleop_ik_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -90,6 +96,8 @@ target_include_directories(teleop_ik_core PUBLIC
 )
 ament_target_dependencies(teleop_ik_core Eigen3)
 target_link_libraries(teleop_ik_core pinocchio::pinocchio)
+ament_target_dependencies(teleop_ik_core
+  rclcpp geometry_msgs sensor_msgs trajectory_msgs builtin_interfaces)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
@@ -98,6 +106,17 @@ if(BUILD_TESTING)
   ament_add_gtest(test_target_msg_cpp test/test_target_msg.cpp)
   ament_target_dependencies(test_target_msg_cpp rosidl_typesupport_cpp)
   target_link_libraries(test_target_msg_cpp teleop_ik__rosidl_typesupport_cpp)
+  ament_add_gtest(test_ik_node_helpers_cpp test/test_ik_node_helpers.cpp)
+  target_link_libraries(test_ik_node_helpers_cpp teleop_ik_core)
+  ament_target_dependencies(test_ik_node_helpers_cpp
+    rclcpp geometry_msgs trajectory_msgs builtin_interfaces pinocchio)
+  # 実 SO-101 URDF (xacro 展開済) を TELEOP_IK_TEST_URDF_PATH に注入.
+  # CMake のビルド時 xacro を呼べないため, 生成済みファイルを使う前提.
+  # ファイルがなければテストは SKIP される.
+  set(_urdf_xacro "${CMAKE_CURRENT_SOURCE_DIR}/test/so101.urdf")
+  set_tests_properties(test_ik_node_helpers_cpp PROPERTIES
+    ENVIRONMENT "TELEOP_IK_TEST_URDF_PATH=${_urdf_xacro}"
+    SKIP_RETURN_CODE 77)
 endif()
 
 install(TARGETS teleop_ik_core
