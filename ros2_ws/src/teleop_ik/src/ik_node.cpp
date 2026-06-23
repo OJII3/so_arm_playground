@@ -65,12 +65,85 @@ builtin_interfaces::msg::Duration seconds_to_duration(double seconds)
 
 TeleopIKNode::TeleopIKNode() : rclcpp::Node("teleop_ik_node")
 {
+  // パラメータ宣言
+  this->declare_parameter<std::string>("urdf_path", "");
+  this->declare_parameter<std::string>("end_effector_frame", "gripper");
+  this->declare_parameter<double>("position_scale", 1.0);
+  this->declare_parameter<double>("ik_damping", 1e-6);
+  this->declare_parameter<int>("ik_max_iterations", 100);
+  this->declare_parameter<double>("ik_tolerance", 1e-4);
+  this->declare_parameter<double>("trajectory_time_from_start", 0.1);
+  this->declare_parameter<bool>("unity_conversion", true);
+  this->declare_parameter<double>("stick_velocity_scale", 1.5);
+  this->declare_parameter<double>("stick_deadzone", 0.1);
+  this->declare_parameter<double>("stick_max_delta_per_msg", 0.2);
+  this->declare_parameter<double>("stick_fallback_dt", 0.0111);
+
+  // URDF 読み込み & モデル構築
+  const auto urdf_path = this->get_parameter("urdf_path").as_string();
+  if (urdf_path.empty()) {
+    RCLCPP_FATAL(get_logger(), "Parameter 'urdf_path' is required");
+    throw std::runtime_error("Parameter 'urdf_path' is required");
+  }
+  const std::string urdf_xml = process_xacro(urdf_path);
+  pinocchio::urdf::buildModelFromXML(urdf_xml, model_, false, false);
+  data_ = pinocchio::Data(model_);
+  q_current_ = pinocchio::neutral(model_);
+
+  const auto ee_frame = this->get_parameter("end_effector_frame").as_string();
+  if (!model_.existFrame(ee_frame)) {
+    RCLCPP_FATAL(get_logger(), "Frame '%s' not found in URDF", ee_frame.c_str());
+    throw std::runtime_error("Frame '" + ee_frame + "' not found in URDF");
+  }
+  ee_frame_id_ = model_.getFrameId(ee_frame);
+
+  for (size_t i = 0; i < 5; ++i) {
+    const std::string name = std::to_string(i + 1);
+    if (!model_.existJointName(name)) {
+      RCLCPP_FATAL(get_logger(), "Joint '%s' not found in URDF", name.c_str());
+      throw std::runtime_error("Joint '" + name + "' not found in URDF");
+    }
+    arm_joint_ids_[i] = model_.getJointId(name);
+  }
+  for (size_t i = 0; i < 3; ++i) {
+    position_joint_ids_[i] = arm_joint_ids_[i];
+  }
+  wrist_joint_ids_[0] = arm_joint_ids_[3];
+  wrist_joint_ids_[1] = arm_joint_ids_[4];
+
+  RCLCPP_INFO(
+      get_logger(), "Pinocchio model loaded: %d DOF, EE frame='%s' (id=%zu)",
+      model_.nq, ee_frame.c_str(), static_cast<size_t>(ee_frame_id_));
+
+  // QoS
+  rclcpp::QoS target_qos(rclcpp::KeepLast(10));
+  target_qos.reliability(rclcpp::ReliabilityPolicy::BestEffort);
+  target_qos.durability(rclcpp::DurabilityPolicy::Volatile);
+
+  sub_active_ = this->create_subscription<std_msgs::msg::Bool>(
+      "/teleop/active", 10,
+      std::bind(&TeleopIKNode::on_active_msg, this, std::placeholders::_1));
+  sub_target_ = this->create_subscription<teleop_ik::msg::TargetPoseWithInput>(
+      "/teleop/target", target_qos,
+      std::bind(&TeleopIKNode::on_target_msg, this, std::placeholders::_1));
+  sub_gripper_ = this->create_subscription<std_msgs::msg::Float64>(
+      "/teleop/gripper", 10,
+      std::bind(&TeleopIKNode::on_gripper_msg, this, std::placeholders::_1));
+  sub_joint_states_ = this->create_subscription<sensor_msgs::msg::JointState>(
+      "/follower/joint_states", 10,
+      std::bind(&TeleopIKNode::on_joint_states_msg, this, std::placeholders::_1));
+
+  pub_arm_ = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
+      "/follower/arm_controller/joint_trajectory", 10);
+  pub_gripper_ = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
+      "/follower/gripper_controller/joint_trajectory", 10);
 }
 
 std::unique_ptr<TeleopIKNode> TeleopIKNode::make_for_test(
     const std::string & urdf_xml, const std::string & ee_frame_name)
 {
-  auto node = std::unique_ptr<TeleopIKNode>(new TeleopIKNode());
+  // テスト用: デフォルトコンストラクタの重い body (URDF 読み込み等) をスキップ.
+  auto node = std::unique_ptr<TeleopIKNode>(new TeleopIKNode(true));
   // urdfdom の XML パースが不安定なため, 一時ファイル経由で buildModel する.
   char tmpl[] = "/tmp/teleop_ik_urdfXXXXXX";
   const int fd = mkstemp(tmpl);
@@ -317,4 +390,62 @@ trajectory_msgs::msg::JointTrajectory TeleopIKNode::make_gripper_trajectory(
   return traj;
 }
 
+void TeleopIKNode::on_active_msg(const std_msgs::msg::Bool::SharedPtr msg)
+{
+  on_active(msg->data);
+}
+
+void TeleopIKNode::on_target_msg(const teleop_ik::msg::TargetPoseWithInput::SharedPtr msg)
+{
+  on_target_with_input(
+      msg->pose, msg->stick_x, msg->stick_y, msg->header.stamp,
+      this->get_parameter("position_scale").as_double(),
+      this->get_parameter("stick_velocity_scale").as_double(),
+      this->get_parameter("stick_deadzone").as_double(),
+      this->get_parameter("stick_max_delta_per_msg").as_double(),
+      this->get_parameter("stick_fallback_dt").as_double(),
+      this->get_parameter("unity_conversion").as_bool());
+
+  if (q_solution_.size() == 0) {
+    return;
+  }
+  const double t = this->get_parameter("trajectory_time_from_start").as_double();
+  pub_arm_->publish(make_arm_trajectory(q_solution_, t));
+}
+
+void TeleopIKNode::on_gripper_msg(const std_msgs::msg::Float64::SharedPtr msg)
+{
+  on_gripper(msg->data);
+  if (!active_) {
+    return;
+  }
+  const double value = std::clamp(msg->data, 0.0, 1.0);
+  const double angle = kGripperLower + value * (kGripperUpper - kGripperLower);
+  const double t = this->get_parameter("trajectory_time_from_start").as_double();
+  pub_gripper_->publish(make_gripper_trajectory(angle, t));
+}
+
+void TeleopIKNode::on_joint_states_msg(const sensor_msgs::msg::JointState::SharedPtr msg)
+{
+  for (size_t i = 0; i < msg->name.size(); ++i) {
+    if (i < msg->position.size()) {
+      on_joint_state(msg->name[i], msg->position[i]);
+    }
+  }
+}
+
 }  // namespace teleop_ik
+
+int main(int argc, char * argv[])
+{
+  rclcpp::init(argc, argv);
+  try {
+    auto node = std::make_shared<teleop_ik::TeleopIKNode>();
+    rclcpp::spin(node);
+  } catch (const std::exception & e) {
+    fprintf(stderr, "teleop_ik_node: %s\n", e.what());
+    return 1;
+  }
+  rclcpp::shutdown();
+  return 0;
+}

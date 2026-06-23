@@ -14,6 +14,10 @@
 #include <pinocchio/multibody/data.hpp>
 #include <pinocchio/multibody/model.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/float64.hpp>
+#include <teleop_ik/msg/target_pose_with_input.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 
 namespace teleop_ik
@@ -23,10 +27,15 @@ class TeleopIKNode : public rclcpp::Node
 {
  public:
   // テスト用ファクトリ. URDF XML を直接渡して部分初期化する.
+  // rclcpp::init/shutdown は呼び出し側で完了済み前提.
   static std::unique_ptr<TeleopIKNode> make_for_test(
       const std::string & urdf_xml, const std::string & ee_frame_name = "ee");
 
   TeleopIKNode();
+  // テスト用: デフォルトコンストラクタをスキップして rclcpp::Node だけ構築.
+  // bool 引数はオーバーロード曖昧さ回避のためのダミー.
+  explicit TeleopIKNode(bool /*test_mode*/, const std::string & node_name = "teleop_ik_node")
+      : rclcpp::Node(node_name) {}
 
   // 純粋ヘルパー (テストから直接呼ぶ).
   Eigen::VectorXd clamp_joints(const Eigen::VectorXd & q) const;
@@ -56,6 +65,12 @@ class TeleopIKNode : public rclcpp::Node
   trajectory_msgs::msg::JointTrajectory make_gripper_trajectory(
       double angle, double trajectory_time_from_start) const;
 
+  // ROS 2 callback ラッパ
+  void on_active_msg(const std_msgs::msg::Bool::SharedPtr msg);
+  void on_target_msg(const teleop_ik::msg::TargetPoseWithInput::SharedPtr msg);
+  void on_gripper_msg(const std_msgs::msg::Float64::SharedPtr msg);
+  void on_joint_states_msg(const sensor_msgs::msg::JointState::SharedPtr msg);
+
   // メンバ: テストから状態を組み立てるため public としている.
   pinocchio::Model model_;
   pinocchio::Data data_;
@@ -74,6 +89,14 @@ class TeleopIKNode : public rclcpp::Node
   std::optional<double> last_msg_stamp_;
   Eigen::VectorXd q_current_;
   Eigen::VectorXd q_solution_;
+
+  // ROS 2 sub/pub
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr sub_active_;
+  rclcpp::Subscription<teleop_ik::msg::TargetPoseWithInput>::SharedPtr sub_target_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr sub_gripper_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr sub_joint_states_;
+  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr pub_arm_;
+  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr pub_gripper_;
 };
 
 }  // namespace teleop_ik

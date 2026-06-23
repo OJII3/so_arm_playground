@@ -95,7 +95,7 @@ target_include_directories(teleop_ik_core PUBLIC
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
 )
 ament_target_dependencies(teleop_ik_core Eigen3)
-target_link_libraries(teleop_ik_core pinocchio::pinocchio)
+target_link_libraries(teleop_ik_core pinocchio::pinocchio teleop_ik__rosidl_typesupport_cpp)
 ament_target_dependencies(teleop_ik_core
   rclcpp geometry_msgs sensor_msgs trajectory_msgs builtin_interfaces)
 
@@ -127,7 +127,20 @@ install(TARGETS teleop_ik_core
 )
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
 
+# --- ik_node executable (Task 14) ---
+add_executable(teleop_ik_node
+  src/ik_node.cpp
+)
+target_include_directories(teleop_ik_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
+)
+ament_target_dependencies(teleop_ik_node
+  rclcpp geometry_msgs std_msgs sensor_msgs trajectory_msgs builtin_interfaces)
+target_link_libraries(teleop_ik_node teleop_ik_core pinocchio::pinocchio teleop_ik__rosidl_typesupport_cpp)
+install(TARGETS teleop_ik_node RUNTIME DESTINATION lib/${PROJECT_NAME})
+
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
-ament_export_dependencies(Eigen3 pinocchio)
+ament_export_dependencies(Eigen3 pinocchio rclcpp)
 
 ament_package()
