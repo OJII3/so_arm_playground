@@ -9,6 +9,11 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
+if(WARNINGS_AS_ERRORS)
+  add_compile_options(-Werror)
+endif()
+
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -25,8 +30,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES geometry_msgs std_msgs
 )
 
-# --- C++ core library ---
-add_library(teleop_ik_core SHARED
+# --- C++ core library (no main) ---
+add_library(teleop_ik_core
   src/coordinate_utils.cpp
   src/ik_node.cpp
 )
@@ -40,8 +45,8 @@ target_link_libraries(teleop_ik_core
 ament_target_dependencies(teleop_ik_core
   rclcpp geometry_msgs sensor_msgs trajectory_msgs builtin_interfaces)
 
-# --- gamepad library (class only, no main) ---
-add_library(teleop_ik_gamepad SHARED
+# --- gamepad library (no main) ---
+add_library(teleop_ik_gamepad
   src/gamepad_node.cpp
 )
 target_include_directories(teleop_ik_gamepad PUBLIC
@@ -56,15 +61,8 @@ install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
 
 # --- ik_node executable ---
-add_executable(teleop_ik_node src/ik_node.cpp)
-target_include_directories(teleop_ik_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
-)
-ament_target_dependencies(teleop_ik_node
-  rclcpp geometry_msgs std_msgs sensor_msgs trajectory_msgs builtin_interfaces)
-target_link_libraries(teleop_ik_node
-  teleop_ik_core pinocchio::pinocchio teleop_ik__rosidl_typesupport_cpp)
+add_executable(teleop_ik_node src/ik_node_main.cpp)
+target_link_libraries(teleop_ik_node teleop_ik_core)
 install(TARGETS teleop_ik_node RUNTIME DESTINATION lib/${PROJECT_NAME})
 
 # --- gamepad_teleop_node executable ---
@@ -86,6 +84,7 @@ ament_export_dependencies(Eigen3 pinocchio rclcpp)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_index_cpp REQUIRED)
   ament_add_gtest(test_coordinate_utils_cpp test/test_coordinate_utils.cpp)
   target_link_libraries(test_coordinate_utils_cpp teleop_ik_core)
   ament_add_gtest(test_target_msg_cpp test/test_target_msg.cpp)
@@ -97,8 +96,7 @@ if(BUILD_TESTING)
     rclcpp geometry_msgs trajectory_msgs builtin_interfaces pinocchio)
   set(_urdf_xacro "${CMAKE_CURRENT_SOURCE_DIR}/test/so101.urdf")
   set_tests_properties(test_ik_node_helpers_cpp PROPERTIES
-    ENVIRONMENT "TELEOP_IK_TEST_URDF_PATH=${_urdf_xacro}"
-    SKIP_RETURN_CODE 77)
+    ENVIRONMENT "TELEOP_IK_TEST_URDF_PATH=${_urdf_xacro}")
   ament_add_gtest(test_gamepad_node_cpp test/test_gamepad_node.cpp)
   ament_target_dependencies(test_gamepad_node_cpp rclcpp sensor_msgs rosidl_typesupport_cpp)
   target_include_directories(test_gamepad_node_cpp PRIVATE
@@ -107,7 +105,9 @@ if(BUILD_TESTING)
     teleop_ik_gamepad teleop_ik__rosidl_typesupport_cpp)
   ament_add_gtest(test_qos_cpp test/test_qos.cpp)
   ament_target_dependencies(test_qos_cpp rclcpp)
-  target_link_libraries(test_qos_cpp teleop_ik_gamepad)
+  target_link_libraries(test_qos_cpp teleop_ik_gamepad teleop_ik_core)
+  set_tests_properties(test_qos_cpp PROPERTIES
+    ENVIRONMENT "TELEOP_IK_TEST_URDF_PATH=${_urdf_xacro}")
   ament_add_gtest(test_packaging_cpp test/test_packaging.cpp)
   ament_target_dependencies(test_packaging_cpp ament_index_cpp)
 endif()
