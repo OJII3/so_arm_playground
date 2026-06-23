@@ -69,4 +69,32 @@ if(BUILD_TESTING)
   )
 endif()
 
+# --- C++ implementation (added incrementally) ---
+find_package(Eigen3 REQUIRED)
+find_package(pinocchio REQUIRED)
+
+add_library(teleop_ik_core SHARED
+  src/coordinate_utils.cpp
+)
+target_include_directories(teleop_ik_core PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
+)
+ament_target_dependencies(teleop_ik_core Eigen3)
+target_link_libraries(teleop_ik_core pinocchio::pinocchio)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_coordinate_utils_cpp test/test_coordinate_utils.cpp)
+  target_link_libraries(test_coordinate_utils_cpp teleop_ik_core)
+endif()
+
+install(TARGETS teleop_ik_core
+  EXPORT export_teleop_ikTargets
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
+install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
+
 ament_package()
