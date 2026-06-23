@@ -39,6 +39,10 @@ from ${script_module} import main
 if __name__ == '__main__':
     main()
 ")
+  file(CHMOD "${script_path}" PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE)
   install(PROGRAMS "${script_path}" DESTINATION lib/${PROJECT_NAME})
 endfunction()
 
