@@ -1,6 +1,7 @@
 // teleop_ik/test/test_ik_node_helpers.cpp
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -126,10 +127,12 @@ TEST_F(TeleopIKHelpersTest, SolveIkConvergesForReachablePositionTarget)
   EXPECT_LT((actual - target).norm(), 1e-4);
 }
 
-TEST_F(TeleopIKHelpersTest, SolveIkKeepsWristJointTargetsFixed)
+TEST_F(TeleopIKHelpersTest, SolveIkKeepsJoint5Fixed)
 {
-  // position joint 1〜3 の seed を変えたが, wrist joint 4, 5 は固定されているはず
-  // (wrist_joint_ids_[0] = 4, wrist_joint_ids_[1] = 5).
+  // position joint 1〜3 の seed を変えたが, joint 5 はソルバの対象外
+  // (FK 制御) なので seed 値が保持される.
+  // 一方 joint 4 は新方式で position_joint_ids_ に含まれているため,
+  // ソルバの冗長 DOF 解決で動きうる. ここでは joint 5 のみ検証する.
   Eigen::VectorXd seed = node_->q_current_;
   const auto idx_q_4 = node_->model_.joints[node_->model_.getJointId("4")].idx_q();
   const auto idx_q_5 = node_->model_.joints[node_->model_.getJointId("5")].idx_q();
@@ -141,9 +144,9 @@ TEST_F(TeleopIKHelpersTest, SolveIkKeepsWristJointTargetsFixed)
     Eigen::Vector3d(0.0, -0.005, 0.0);
   const auto result = node_->solve_ik(target, seed, 1e-6, 100, 1e-4);
   ASSERT_TRUE(result.has_value());
-  // ソルバ内部で q_seed[idx_q] を上書きせず, 結果の wrist は seed と同じ.
-  EXPECT_NEAR((*result)[idx_q_4], 0.2, 1e-9);
+  // joint 5 はソルバ外なので seed 値が保持される.
   EXPECT_NEAR((*result)[idx_q_5], -0.3, 1e-9);
+  // 参考: joint 4 はソルバ内だが, このテストでは特に値を固定しない.
 }
 
 // ---- 統合 callback 系 ----
@@ -311,4 +314,40 @@ TEST_F(CallbacksFixture, StickMaxDeltaPerMsgClampsIntegration)
       /*ik_tolerance=*/1e-4);
   EXPECT_NEAR(node_->integrated_stick_.x(), 0.05, 1e-9);
   EXPECT_NEAR(node_->integrated_stick_.y(), 0.05, 1e-9);
+}
+
+TEST_F(TeleopIKHelpersTest, SolveIkHasFourPositionJoints)
+{
+  // 新方式: position_joint_ids_ には joint 1, 2, 3, 4 が入る.
+  EXPECT_EQ(node_->position_joint_ids_.size(), 4u);
+}
+
+TEST_F(TeleopIKHelpersTest, SolveIkAdjustsJoint4)
+{
+  // joint 4 は position_joint_ids_ に含まれているため, IK の seed 値から
+  // ソルバが動かすことが許容される. ここでは position_joint_ids_ に
+  // joint 4 が含まれていることだけ検証する.
+  const auto jid_4 = node_->model_.getJointId("4");
+  EXPECT_NE(
+      std::find(
+          node_->position_joint_ids_.begin(),
+          node_->position_joint_ids_.end(),
+          jid_4),
+      node_->position_joint_ids_.end());
+
+  // さらに, ソルバが joint 4 を変更しうることを確認するため, ターゲットを
+  // 少しだけ動かして solve_ik を呼ぶ. joint 4 の seed 値はソルバの
+  // 冗長 DOF 解決によって変化しうる (変化しなくても許容).
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_current_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d current = node_->data_.oMf[node_->ee_frame_id_].translation();
+  const Eigen::Vector3d target = current + Eigen::Vector3d(0.0, -0.01, 0.0);
+  const auto idx_q_4 = node_->model_.joints[node_->model_.getJointId("4")].idx_q();
+  Eigen::VectorXd seed = node_->q_current_;
+  seed[idx_q_4] = 0.0;  // 現在値から意図的にずらす
+  const auto result = node_->solve_ik(target, seed, 1e-6, 100, 1e-4);
+  ASSERT_TRUE(result.has_value());
+  // joint 4 が joints 制限内に収まっている.
+  EXPECT_GE((*result)[idx_q_4], node_->model_.lowerPositionLimit[idx_q_4] - 1e-9);
+  EXPECT_LE((*result)[idx_q_4], node_->model_.upperPositionLimit[idx_q_4] + 1e-9);
 }
