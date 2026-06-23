@@ -351,3 +351,67 @@ TEST_F(TeleopIKHelpersTest, SolveIkAdjustsJoint4)
   EXPECT_GE((*result)[idx_q_4], node_->model_.lowerPositionLimit[idx_q_4] - 1e-9);
   EXPECT_LE((*result)[idx_q_4], node_->model_.upperPositionLimit[idx_q_4] + 1e-9);
 }
+
+TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForJoint5)
+{
+  // セッション開始で q_current_ の joint 5 値を wrist_init_pos_.x() に保存.
+  node_->active_ = false;
+  const auto idx_q_5 = node_->model_.joints[node_->model_.getJointId("5")].idx_q();
+  node_->q_current_[idx_q_5] = 0.5;
+  std_msgs::msg::Bool true_msg;
+  true_msg.data = true;
+  node_->on_active_msg(std::make_shared<std_msgs::msg::Bool>(true_msg));
+  ASSERT_NEAR(node_->wrist_init_pos_.x(), 0.5, 1e-9);
+
+  // 1 回目: anchor 設定 (pose = origin).
+  geometry_msgs::msg::Pose pose_anchor;
+  pose_anchor.position.x = 0.0;
+  pose_anchor.position.y = 0.0;
+  pose_anchor.position.z = 0.0;
+  EXPECT_FALSE(call_on_target_with_input(pose_anchor, 0.0f, 0.0f));
+
+  // 2 回目: stick_x = 1.0 で 1 メッセージ分だけ積分.
+  // CallbacksFixture では stick_velocity_scale=1.0, stick_fallback_dt=0.1, cap=10.0.
+  // → integrated_stick_.x() = 0.1
+  geometry_msgs::msg::Pose pose2;
+  pose2.position.x = 0.0;
+  pose2.position.y = -0.05;
+  pose2.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(pose2, 1.0f, 0.0f));
+
+  // q_solution_[idx_q_5] = wrist_init_pos_.x() + integrated_stick_.x()
+  //                       = 0.5 + 0.1 = 0.6 が publish される.
+  EXPECT_NEAR(node_->q_solution_[idx_q_5], 0.6, 1e-6);
+}
+
+TEST_F(CallbacksFixture, OnTargetWithInputClampsFkJoint5ToLimit)
+{
+  // joint 5 の upper limit を取得し, wrist_init_pos_.x() を limit - 0.1 にセット.
+  // integrated_stick_.x() を +1.0 に直接セット (limit を超える量).
+  // → q_solution_[idx_q_5] は upperPositionLimit に clamp されるはず.
+  node_->active_ = false;
+  const auto idx_q_5 = node_->model_.joints[node_->model_.getJointId("5")].idx_q();
+  const double upper_5 = node_->model_.upperPositionLimit[idx_q_5];
+  node_->q_current_[idx_q_5] = upper_5 - 0.1;
+  std_msgs::msg::Bool true_msg;
+  true_msg.data = true;
+  node_->on_active_msg(std::make_shared<std_msgs::msg::Bool>(true_msg));
+
+  // 1 回目: anchor 設定.
+  geometry_msgs::msg::Pose pose_anchor;
+  pose_anchor.position.x = 0.0;
+  pose_anchor.position.y = 0.0;
+  pose_anchor.position.z = 0.0;
+  EXPECT_FALSE(call_on_target_with_input(pose_anchor, 0.0f, 0.0f));
+
+  // 2 回目: integrated_stick_ を limit を超える量に強制セットして IK を走らせる.
+  geometry_msgs::msg::Pose pose2;
+  pose2.position.x = 0.0;
+  pose2.position.y = -0.05;
+  pose2.position.z = 0.0;
+  node_->integrated_stick_.x() = 1.0;  // upper - 0.1 + 1.0 = upper + 0.9 → clamp
+  EXPECT_TRUE(call_on_target_with_input(pose2, 0.0f, 0.0f));
+
+  // q_solution_[idx_q_5] は upperPositionLimit にクランプされる.
+  EXPECT_NEAR(node_->q_solution_[idx_q_5], upper_5, 1e-9);
+}
