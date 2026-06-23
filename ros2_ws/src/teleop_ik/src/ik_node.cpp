@@ -156,11 +156,12 @@ void TeleopIKNode::init_ros_node()
     }
     arm_joint_ids_[i] = model_.getJointId(name);
   }
-  for (size_t i = 0; i < 3; ++i) {
+  // IK ソルバが触れる関節: joint 1, 2, 3, 4 (4DOF, 3D 位置ターゲットで 1 自由度冗長).
+  for (size_t i = 0; i < 4; ++i) {
     position_joint_ids_[i] = arm_joint_ids_[i];
   }
-  wrist_joint_ids_[0] = arm_joint_ids_[3];
-  wrist_joint_ids_[1] = arm_joint_ids_[4];
+  // FK 制御の関節: joint 5 のみ (stick_x の速度積分).
+  wrist_joint_ids_[0] = arm_joint_ids_[4];
 
   RCLCPP_INFO(
       get_logger(), "Pinocchio model loaded: %d DOF, EE frame='%s' (id=%zu)",
@@ -226,11 +227,11 @@ std::unique_ptr<TeleopIKNode> TeleopIKNode::make_for_test(
       node->arm_joint_ids_[i] = static_cast<pinocchio::JointIndex>(-1);
     }
   }
-  for (size_t i = 0; i < 3; ++i) {
+  // IK ソルバ対象: joint 1, 2, 3, 4. FK: joint 5.
+  for (size_t i = 0; i < 4; ++i) {
     node->position_joint_ids_[i] = node->arm_joint_ids_[i];
   }
-  node->wrist_joint_ids_[0] = node->arm_joint_ids_[3];
-  node->wrist_joint_ids_[1] = node->arm_joint_ids_[4];
+  node->wrist_joint_ids_[0] = node->arm_joint_ids_[4];
 
   if (!node->model_.existFrame(ee_frame_name)) {
     throw std::runtime_error("Frame '" + ee_frame_name + "' not found in URDF");
