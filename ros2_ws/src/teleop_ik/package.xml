@@ -2,23 +2,22 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>teleop_ik</name>
-  <version>0.0.1</version>
-  <description>VR teleop IK node for SO-101 arm using Pinocchio</description>
+  <version>0.1.0</version>
+  <description>VR teleop IK node for SO-101 arm using Pinocchio (C++)</description>
   <maintainer email="ojii3dev@gmail.com">OJII3</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <exec_depend>rclpy</exec_depend>
-  <depend>eigen</depend>
-  <depend>pinocchio</depend>
-  <depend>rclcpp</depend>
-  <test_depend>ament_cmake_gtest</test_depend>
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>trajectory_msgs</exec_depend>
-  <exec_depend>xacro</exec_depend>
+  <depend>sensor_msgs</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>builtin_interfaces</depend>
+  <depend>rclcpp</depend>
+  <depend>eigen</depend>
+  <depend>pinocchio</depend>
+
   <exec_depend>joy</exec_depend>
   <exec_depend>lerobot_controller</exec_depend>
   <exec_depend>lerobot_description</exec_depend>
@@ -28,9 +27,9 @@
 
   <member_of_group>rosidl_interface_packages</member_of_group>
 
+  <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
-  <test_depend>python3-pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
