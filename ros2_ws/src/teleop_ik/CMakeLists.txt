@@ -162,6 +162,13 @@ if(BUILD_TESTING)
   target_include_directories(test_gamepad_node_cpp PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(test_gamepad_node_cpp teleop_ik_gamepad teleop_ik__rosidl_typesupport_cpp)
+  ament_add_gtest(test_qos_cpp test/test_qos.cpp)
+  ament_target_dependencies(test_qos_cpp rclcpp Eigen3)
+  target_include_directories(test_qos_cpp PRIVATE
+    ${Eigen3_INCLUDE_DIRS})
+  target_link_libraries(test_qos_cpp teleop_ik_gamepad)
+  ament_add_gtest(test_packaging_cpp test/test_packaging.cpp)
+  ament_target_dependencies(test_packaging_cpp ament_index_cpp)
 endif()
 
 ament_package()
