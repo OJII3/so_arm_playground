@@ -61,8 +61,6 @@ pkgs.mkShell {
 
           joy
           pinocchio
-          python3Packages.coal
-          python3Packages.pinocchio
         ]
       )
       ++ builtins.attrValues extraPkgs
