@@ -413,19 +413,24 @@ bool TeleopIKNode::on_target_with_input(
   integrated_stick_.y() += vy_c * stick_velocity_scale * delta_t;
 
   Eigen::VectorXd q_seed = q_solution_;
-  if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
-    const auto idx_q_0 = model_.joints[wrist_joint_ids_[0]].idx_q();
-    q_seed[idx_q_0] = wrist_init_pos_.y() + integrated_stick_.y();
+  // joint 4 は IK ソルバの冗長 DOF. stick_y 積分値を seed の bias として渡す.
+  if (arm_joint_ids_[3] != static_cast<pinocchio::JointIndex>(-1)) {
+    const auto idx_q_4 = model_.joints[arm_joint_ids_[3]].idx_q();
+    q_seed[idx_q_4] = wrist_init_pos_.y() + integrated_stick_.y();
   }
-  if (wrist_joint_ids_[1] != static_cast<pinocchio::JointIndex>(-1)) {
-    const auto idx_q_1 = model_.joints[wrist_joint_ids_[1]].idx_q();
-    q_seed[idx_q_1] = wrist_init_pos_.x() + integrated_stick_.x();
-  }
+  // joint 5 は FK (position_joint_ids_ に含めない) なので q_seed で
+  // 上書きしない. q_solution_ からの前回値 (= 直近の stick 積分値) を保持.
   q_seed = clamp_joints(q_seed);
 
   if (auto result = solve_ik(target_pos, q_seed, ik_damping, ik_max_iterations, ik_tolerance);
       result.has_value()) {
     q_solution_ = *result;
+    // joint 5 はソルバ外. stick_x 由来の FK 値を q_solution_ に注入して
+    // make_arm_trajectory がそのまま publish できるようにする.
+    if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
+      const auto idx_q_5 = model_.joints[wrist_joint_ids_[0]].idx_q();
+      q_solution_[idx_q_5] = wrist_init_pos_.x() + integrated_stick_.x();
+    }
     return true;
   }
   // IK 失敗: 古い q_solution_ を維持し, publish しない.
