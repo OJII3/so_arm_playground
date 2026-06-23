@@ -32,10 +32,18 @@ class TeleopIKNode : public rclcpp::Node
       const std::string & urdf_xml, const std::string & ee_frame_name = "ee");
 
   TeleopIKNode();
+  // NodeOptions 指定版: パラメータオーバーライド (urdf_path など) を反映.
+  explicit TeleopIKNode(const rclcpp::NodeOptions & options);
   // テスト用: デフォルトコンストラクタをスキップして rclcpp::Node だけ構築.
   // bool 引数はオーバーロード曖昧さ回避のためのダミー.
   explicit TeleopIKNode(bool /*test_mode*/, const std::string & node_name = "teleop_ik_node")
       : rclcpp::Node(node_name) {}
+
+ private:
+  // コンストラクタ初期化の本体. デフォルト / NodeOptions 両方から共有.
+  void init_ros_node();
+
+ public:
 
   // 純粋ヘルパー (テストから直接呼ぶ).
   Eigen::VectorXd clamp_joints(const Eigen::VectorXd & q) const;
@@ -43,12 +51,12 @@ class TeleopIKNode : public rclcpp::Node
       double x, double y, double deadzone) const;
   std::optional<double> stamp_to_time(const builtin_interfaces::msg::Time & stamp) const;
   std::optional<Eigen::VectorXd> solve_ik(
-      const Eigen::Vector3d & target_position, const Eigen::VectorXd & q_seed);
+      const Eigen::Vector3d & target_position, const Eigen::VectorXd & q_seed,
+      double damping, int max_iter, double tol);
 
   // セッション管理 + 統合 callback
-  void on_active(bool active);
-  void on_joint_state(const std::string & name, double position);
-  void on_target_with_input(
+  // on_target_with_input: 戻り値 true = IK 収束して publish すべき, false = anchor 設定 or IK 失敗
+  bool on_target_with_input(
       const geometry_msgs::msg::Pose & pose,
       float stick_x, float stick_y,
       const builtin_interfaces::msg::Time & stamp,
@@ -57,7 +65,10 @@ class TeleopIKNode : public rclcpp::Node
       double stick_deadzone,
       double stick_max_delta_per_msg,
       double stick_fallback_dt,
-      bool unity_conversion);
+      bool unity_conversion,
+      double ik_damping, int ik_max_iterations, double ik_tolerance);
+  void on_active(bool active);
+  void on_joint_state(const std::string & name, double position);
   void on_gripper(double value);
 
   trajectory_msgs::msg::JointTrajectory make_arm_trajectory(

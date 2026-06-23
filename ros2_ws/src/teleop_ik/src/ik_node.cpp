@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include <fcntl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <pinocchio/algorithm/frames.hpp>
@@ -28,26 +30,64 @@ namespace
 {
 constexpr double kGripperLower = -0.174533;
 constexpr double kGripperUpper = 1.74533;
-constexpr double kIkDamping = 1e-6;
-constexpr int kIkMaxIterations = 100;
-constexpr double kIkTolerance = 1e-4;
 constexpr double kIkDt = 0.2;
 
-std::string process_xacro(const std::string & xacro_path)
+// xacro を shell 経由ではなく execvp で安全に起動し, stdout を読み取る.
+// パスが `.xacro` で終わらない場合は, すでに展開済みの URDF ファイルと
+// みなしてファイル内容を直接読み込む (テストでも使用).
+std::string process_xacro(const std::string & path)
 {
-  std::string cmd = "xacro " + xacro_path;
+  // .xacro 以外は展開済み URDF として読む.
+  if (path.size() < 6 ||
+      path.compare(path.size() - 6, 6, ".xacro") != 0)
+  {
+    std::ifstream f(path);
+    if (!f.good()) {
+      throw std::runtime_error("Failed to open URDF file: " + path);
+    }
+    std::stringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+  }
+
+  int pipefd[2];
+  if (pipe(pipefd) < 0) {
+    throw std::runtime_error("pipe() failed");
+  }
+  const pid_t pid = fork();
+  if (pid < 0) {
+    close(pipefd[0]);
+    close(pipefd[1]);
+    throw std::runtime_error("fork() failed");
+  }
+  if (pid == 0) {
+    close(pipefd[0]);
+    dup2(pipefd[1], STDOUT_FILENO);
+    close(pipefd[1]);
+    execlp("xacro", "xacro", path.c_str(), static_cast<char *>(nullptr));
+    _exit(127);
+  }
+  close(pipefd[1]);
   std::array<char, 4096> buf{};
   std::string out;
-  FILE * pipe = popen(cmd.c_str(), "r");
-  if (!pipe) {
-    throw std::runtime_error("popen(xacro) failed for " + xacro_path);
+  while (true) {
+    const ssize_t n = read(pipefd[0], buf.data(), buf.size());
+    if (n < 0) {
+      if (errno == EINTR) continue;
+      close(pipefd[0]);
+      waitpid(pid, nullptr, 0);
+      throw std::runtime_error("read() from xacro pipe failed");
+    }
+    if (n == 0) break;
+    out.append(buf.data(), static_cast<size_t>(n));
   }
-  while (fgets(buf.data(), buf.size(), pipe) != nullptr) {
-    out += buf.data();
-  }
-  const int rc = pclose(pipe);
-  if (rc != 0) {
-    throw std::runtime_error("xacro CLI failed with code " + std::to_string(rc));
+  close(pipefd[0]);
+  int status = 0;
+  waitpid(pid, &status, 0);
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    const int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    throw std::runtime_error(
+        "xacro CLI failed with code " + std::to_string(code));
   }
   return out;
 }
@@ -64,6 +104,17 @@ builtin_interfaces::msg::Duration seconds_to_duration(double seconds)
 }  // namespace
 
 TeleopIKNode::TeleopIKNode() : rclcpp::Node("teleop_ik_node")
+{
+  init_ros_node();
+}
+
+TeleopIKNode::TeleopIKNode(const rclcpp::NodeOptions & options)
+  : rclcpp::Node("teleop_ik_node", options)
+{
+  init_ros_node();
+}
+
+void TeleopIKNode::init_ros_node()
 {
   // パラメータ宣言
   this->declare_parameter<std::string>("urdf_path", "");
@@ -216,7 +267,8 @@ std::optional<double> TeleopIKNode::stamp_to_time(
 }
 
 std::optional<Eigen::VectorXd> TeleopIKNode::solve_ik(
-    const Eigen::Vector3d & target_position, const Eigen::VectorXd & q_seed)
+    const Eigen::Vector3d & target_position, const Eigen::VectorXd & q_seed,
+    double damping, int max_iter, double tol)
 {
   std::vector<pinocchio::Index> position_velocity_indexes;
   position_velocity_indexes.reserve(position_joint_ids_.size());
@@ -226,11 +278,11 @@ std::optional<Eigen::VectorXd> TeleopIKNode::solve_ik(
   }
 
   Eigen::VectorXd q = clamp_joints(q_seed);
-  for (int i = 0; i < kIkMaxIterations; ++i) {
+  for (int i = 0; i < max_iter; ++i) {
     pinocchio::forwardKinematics(model_, data_, q);
     pinocchio::updateFramePlacements(model_, data_);
     const Eigen::Vector3d err = target_position - data_.oMf[ee_frame_id_].translation();
-    if (err.norm() < kIkTolerance) {
+    if (err.norm() < tol) {
       return clamp_joints(q);
     }
     Eigen::MatrixXd J_full = Eigen::MatrixXd::Zero(6, model_.nv);
@@ -240,7 +292,7 @@ std::optional<Eigen::VectorXd> TeleopIKNode::solve_ik(
     for (Eigen::Index c = 0; c < static_cast<Eigen::Index>(position_velocity_indexes.size()); ++c) {
       J.col(c) = J_full.topRows(3).col(position_velocity_indexes[c]);
     }
-    const Eigen::Matrix3d JJt = J * J.transpose() + kIkDamping * Eigen::Matrix3d::Identity();
+    const Eigen::Matrix3d JJt = J * J.transpose() + damping * Eigen::Matrix3d::Identity();
     const Eigen::VectorXd dq_pos = J.transpose() * JJt.ldlt().solve(err);
     Eigen::VectorXd dq = Eigen::VectorXd::Zero(model_.nv);
     for (size_t k = 0; k < position_velocity_indexes.size(); ++k) {
@@ -261,7 +313,21 @@ void TeleopIKNode::on_active(bool active)
       arm_init_pos_ = data_.oMf[ee_frame_id_].translation();
       unity_anchor_set_ = false;
       q_solution_ = q_current_;
+      // wrist 初期角 = q_current_ の joint 4/5 値. 関節 4 → stick_y (wrist_init_pos.y()),
+      // 関節 5 → stick_x (wrist_init_pos.x()) という軸マッピングは on_target_with_input と同じ.
       wrist_init_pos_.setZero();
+      if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
+        const auto idx_q_0 = model_.joints[wrist_joint_ids_[0]].idx_q();
+        if (idx_q_0 >= 0 && static_cast<Eigen::Index>(idx_q_0) < q_current_.size()) {
+          wrist_init_pos_.y() = q_current_[idx_q_0];  // stick_y → joint 4
+        }
+      }
+      if (wrist_joint_ids_[1] != static_cast<pinocchio::JointIndex>(-1)) {
+        const auto idx_q_1 = model_.joints[wrist_joint_ids_[1]].idx_q();
+        if (idx_q_1 >= 0 && static_cast<Eigen::Index>(idx_q_1) < q_current_.size()) {
+          wrist_init_pos_.x() = q_current_[idx_q_1];  // stick_x → joint 5
+        }
+      }
       integrated_stick_.setZero();
       last_msg_stamp_.reset();
       active_ = true;
@@ -286,7 +352,7 @@ void TeleopIKNode::on_joint_state(const std::string & name, double position)
   }
 }
 
-void TeleopIKNode::on_target_with_input(
+bool TeleopIKNode::on_target_with_input(
     const geometry_msgs::msg::Pose & pose,
     float stick_x, float stick_y,
     const builtin_interfaces::msg::Time & stamp,
@@ -295,10 +361,11 @@ void TeleopIKNode::on_target_with_input(
     double stick_deadzone,
     double stick_max_delta_per_msg,
     double stick_fallback_dt,
-    bool unity_conversion)
+    bool unity_conversion,
+    double ik_damping, int ik_max_iterations, double ik_tolerance)
 {
   if (!active_) {
-    return;
+    return false;
   }
 
   Eigen::Vector3d ros_pos;
@@ -312,10 +379,11 @@ void TeleopIKNode::on_target_with_input(
   }
 
   if (!unity_anchor_set_) {
+    // 初回メッセージは anchor 設定のみで, IK 計算も publish もしない.
     unity_anchor_pos_ = ros_pos;
     unity_anchor_set_ = true;
     last_msg_stamp_ = stamp_to_time(stamp);
-    return;
+    return false;
   }
 
   const Eigen::Vector3d delta = ros_pos - unity_anchor_pos_;
@@ -351,9 +419,13 @@ void TeleopIKNode::on_target_with_input(
   }
   q_seed = clamp_joints(q_seed);
 
-  if (auto result = solve_ik(target_pos, q_seed); result.has_value()) {
+  if (auto result = solve_ik(target_pos, q_seed, ik_damping, ik_max_iterations, ik_tolerance);
+      result.has_value()) {
     q_solution_ = *result;
+    return true;
   }
+  // IK 失敗: 古い q_solution_ を維持し, publish しない.
+  return false;
 }
 
 void TeleopIKNode::on_gripper(double value)
@@ -397,16 +469,20 @@ void TeleopIKNode::on_active_msg(const std_msgs::msg::Bool::SharedPtr msg)
 
 void TeleopIKNode::on_target_msg(const teleop_ik::msg::TargetPoseWithInput::SharedPtr msg)
 {
-  on_target_with_input(
+  const bool solved = on_target_with_input(
       msg->pose, msg->stick_x, msg->stick_y, msg->header.stamp,
       this->get_parameter("position_scale").as_double(),
       this->get_parameter("stick_velocity_scale").as_double(),
       this->get_parameter("stick_deadzone").as_double(),
       this->get_parameter("stick_max_delta_per_msg").as_double(),
       this->get_parameter("stick_fallback_dt").as_double(),
-      this->get_parameter("unity_conversion").as_bool());
+      this->get_parameter("unity_conversion").as_bool(),
+      this->get_parameter("ik_damping").as_double(),
+      this->get_parameter("ik_max_iterations").as_int(),
+      this->get_parameter("ik_tolerance").as_double());
 
-  if (q_solution_.size() == 0) {
+  // IK が解けて初めて publish. anchor 設定 / IK 失敗時は publish しない.
+  if (!solved) {
     return;
   }
   const double t = this->get_parameter("trajectory_time_from_start").as_double();
@@ -436,16 +512,4 @@ void TeleopIKNode::on_joint_states_msg(const sensor_msgs::msg::JointState::Share
 
 }  // namespace teleop_ik
 
-int main(int argc, char * argv[])
-{
-  rclcpp::init(argc, argv);
-  try {
-    auto node = std::make_shared<teleop_ik::TeleopIKNode>();
-    rclcpp::spin(node);
-  } catch (const std::exception & e) {
-    fprintf(stderr, "teleop_ik_node: %s\n", e.what());
-    return 1;
-  }
-  rclcpp::shutdown();
-  return 0;
-}
+// main は ik_node_main.cpp に分離 (テストで lib を link 可能にするため).
