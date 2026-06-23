@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.16)
 project(teleop_ik)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
 find_package(Python3 REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
@@ -90,11 +98,14 @@ if(BUILD_TESTING)
 endif()
 
 install(TARGETS teleop_ik_core
-  EXPORT export_teleop_ikTargets
+  EXPORT ${PROJECT_NAME}Targets
   RUNTIME DESTINATION lib/${PROJECT_NAME}
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
 )
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
+
+ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
+ament_export_dependencies(Eigen3 pinocchio)
 
 ament_package()
