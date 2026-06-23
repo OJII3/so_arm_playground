@@ -156,11 +156,12 @@ void TeleopIKNode::init_ros_node()
     }
     arm_joint_ids_[i] = model_.getJointId(name);
   }
-  for (size_t i = 0; i < 3; ++i) {
+  // IK ソルバが触れる関節: joint 1, 2, 3, 4 (4DOF, 3D 位置ターゲットで 1 自由度冗長).
+  for (size_t i = 0; i < 4; ++i) {
     position_joint_ids_[i] = arm_joint_ids_[i];
   }
-  wrist_joint_ids_[0] = arm_joint_ids_[3];
-  wrist_joint_ids_[1] = arm_joint_ids_[4];
+  // FK 制御の関節: joint 5 のみ (stick_x の速度積分).
+  wrist_joint_ids_[0] = arm_joint_ids_[4];
 
   RCLCPP_INFO(
       get_logger(), "Pinocchio model loaded: %d DOF, EE frame='%s' (id=%zu)",
@@ -226,11 +227,11 @@ std::unique_ptr<TeleopIKNode> TeleopIKNode::make_for_test(
       node->arm_joint_ids_[i] = static_cast<pinocchio::JointIndex>(-1);
     }
   }
-  for (size_t i = 0; i < 3; ++i) {
+  // IK ソルバ対象: joint 1, 2, 3, 4. FK: joint 5.
+  for (size_t i = 0; i < 4; ++i) {
     node->position_joint_ids_[i] = node->arm_joint_ids_[i];
   }
-  node->wrist_joint_ids_[0] = node->arm_joint_ids_[3];
-  node->wrist_joint_ids_[1] = node->arm_joint_ids_[4];
+  node->wrist_joint_ids_[0] = node->arm_joint_ids_[4];
 
   if (!node->model_.existFrame(ee_frame_name)) {
     throw std::runtime_error("Frame '" + ee_frame_name + "' not found in URDF");
@@ -313,19 +314,22 @@ void TeleopIKNode::on_active(bool active)
       arm_init_pos_ = data_.oMf[ee_frame_id_].translation();
       unity_anchor_set_ = false;
       q_solution_ = q_current_;
-      // wrist 初期角 = q_current_ の joint 4/5 値. 関節 4 → stick_y (wrist_init_pos.y()),
-      // 関節 5 → stick_x (wrist_init_pos.x()) という軸マッピングは on_target_with_input と同じ.
+      // wrist 初期角 = q_current_ の joint 4/5 値. 関節 4 → stick_y
+      // (wrist_init_pos.y()), 関節 5 → stick_x (wrist_init_pos.x())
+      // という軸マッピングは on_target_with_input と同じ.
+      // joint 4 は arm_joint_ids_[3], joint 5 は wrist_joint_ids_[0] (= arm_joint_ids_[4]).
       wrist_init_pos_.setZero();
-      if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
-        const auto idx_q_0 = model_.joints[wrist_joint_ids_[0]].idx_q();
-        if (idx_q_0 >= 0 && static_cast<Eigen::Index>(idx_q_0) < q_current_.size()) {
-          wrist_init_pos_.y() = q_current_[idx_q_0];  // stick_y → joint 4
+      const auto jid_4 = arm_joint_ids_[3];
+      if (jid_4 != static_cast<pinocchio::JointIndex>(-1)) {
+        const auto idx_q_4 = model_.joints[jid_4].idx_q();
+        if (idx_q_4 >= 0 && static_cast<Eigen::Index>(idx_q_4) < q_current_.size()) {
+          wrist_init_pos_.y() = q_current_[idx_q_4];  // stick_y → joint 4
         }
       }
-      if (wrist_joint_ids_[1] != static_cast<pinocchio::JointIndex>(-1)) {
-        const auto idx_q_1 = model_.joints[wrist_joint_ids_[1]].idx_q();
-        if (idx_q_1 >= 0 && static_cast<Eigen::Index>(idx_q_1) < q_current_.size()) {
-          wrist_init_pos_.x() = q_current_[idx_q_1];  // stick_x → joint 5
+      if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
+        const auto idx_q_5 = model_.joints[wrist_joint_ids_[0]].idx_q();
+        if (idx_q_5 >= 0 && static_cast<Eigen::Index>(idx_q_5) < q_current_.size()) {
+          wrist_init_pos_.x() = q_current_[idx_q_5];  // stick_x → joint 5
         }
       }
       integrated_stick_.setZero();
@@ -409,19 +413,29 @@ bool TeleopIKNode::on_target_with_input(
   integrated_stick_.y() += vy_c * stick_velocity_scale * delta_t;
 
   Eigen::VectorXd q_seed = q_solution_;
-  if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
-    const auto idx_q_0 = model_.joints[wrist_joint_ids_[0]].idx_q();
-    q_seed[idx_q_0] = wrist_init_pos_.y() + integrated_stick_.y();
+  // joint 4 は IK ソルバの冗長 DOF. stick_y 積分値を seed の bias として渡す.
+  if (arm_joint_ids_[3] != static_cast<pinocchio::JointIndex>(-1)) {
+    const auto idx_q_4 = model_.joints[arm_joint_ids_[3]].idx_q();
+    q_seed[idx_q_4] = wrist_init_pos_.y() + integrated_stick_.y();
   }
-  if (wrist_joint_ids_[1] != static_cast<pinocchio::JointIndex>(-1)) {
-    const auto idx_q_1 = model_.joints[wrist_joint_ids_[1]].idx_q();
-    q_seed[idx_q_1] = wrist_init_pos_.x() + integrated_stick_.x();
-  }
+  // joint 5 は FK (position_joint_ids_ に含めない) なので q_seed で
+  // 上書きしない. q_solution_ からの前回値 (= 直近の stick 積分値) を保持.
   q_seed = clamp_joints(q_seed);
 
   if (auto result = solve_ik(target_pos, q_seed, ik_damping, ik_max_iterations, ik_tolerance);
       result.has_value()) {
     q_solution_ = *result;
+    // joint 5 はソルバ外. stick_x 由来の FK 値を q_solution_ に注入して
+    // make_arm_trajectory がそのまま publish できるようにする.
+    // 注入値は joint limit に必ず clamp する (旧実装の clamp_joints 経由と等価).
+    if (wrist_joint_ids_[0] != static_cast<pinocchio::JointIndex>(-1)) {
+      const auto idx_q_5 = model_.joints[wrist_joint_ids_[0]].idx_q();
+      const double raw_5 = wrist_init_pos_.x() + integrated_stick_.x();
+      q_solution_[idx_q_5] = std::clamp(
+          raw_5,
+          model_.lowerPositionLimit[idx_q_5],
+          model_.upperPositionLimit[idx_q_5]);
+    }
     return true;
   }
   // IK 失敗: 古い q_solution_ を維持し, publish しない.
