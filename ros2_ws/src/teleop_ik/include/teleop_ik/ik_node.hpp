@@ -63,6 +63,7 @@ class TeleopIKNode : public rclcpp::Node
       const geometry_msgs::msg::Pose & pose,
       float stick_x, float stick_y,
       const builtin_interfaces::msg::Time & stamp,
+      bool ik_active,
       double position_scale,
       double stick_velocity_scale,
       double stick_deadzone,

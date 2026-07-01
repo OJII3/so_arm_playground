@@ -172,6 +172,7 @@ struct CallbacksFixture : public TeleopIKHelpersTest
     builtin_interfaces::msg::Time stamp;
     return node_->on_target_with_input(
         pose, sx, sy, stamp,
+        /*ik_active=*/true,
         /*position_scale=*/1.0,
         /*stick_velocity_scale=*/1.0,
         /*stick_deadzone=*/0.0,
@@ -342,6 +343,7 @@ TEST_F(CallbacksFixture, StickDeadzoneBlocksSmallInputs)
         return p;
       }(),
       0.05f, -0.05f, stamp,
+      /*ik_active=*/true,
       /*position_scale=*/1.0,
       /*stick_velocity_scale=*/1.0,
       /*stick_deadzone=*/0.1,
@@ -368,6 +370,7 @@ TEST_F(CallbacksFixture, StickMaxDeltaPerMsgClampsIntegration)
         return p;
       }(),
       1.0f, 1.0f, stamp,
+      /*ik_active=*/true,
       /*position_scale=*/1.0,
       /*stick_velocity_scale=*/1.0,
       /*stick_deadzone=*/0.0,

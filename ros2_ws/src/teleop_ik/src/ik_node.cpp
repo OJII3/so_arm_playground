@@ -370,6 +370,7 @@ bool TeleopIKNode::on_target_with_input(
     const geometry_msgs::msg::Pose & pose,
     float stick_x, float stick_y,
     const builtin_interfaces::msg::Time & stamp,
+    bool ik_active,
     double position_scale,
     double stick_velocity_scale,
     double stick_deadzone,
@@ -393,16 +394,13 @@ bool TeleopIKNode::on_target_with_input(
   }
 
   if (!unity_anchor_set_) {
-    // 初回メッセージは anchor 設定のみで, IK 計算も publish もしない.
     unity_anchor_pos_ = ros_pos;
     unity_anchor_set_ = true;
     last_msg_stamp_ = stamp_to_time(stamp);
     return false;
   }
 
-  const Eigen::Vector3d delta = ros_pos - unity_anchor_pos_;
-  const Eigen::Vector3d target_pos = arm_init_pos_ + delta;
-
+  // --- common stick integration (runs in both modes) ---
   const auto now = stamp_to_time(stamp);
   double delta_t;
   if (!last_msg_stamp_.has_value() || !now.has_value()) {
@@ -422,30 +420,50 @@ bool TeleopIKNode::on_target_with_input(
   integrated_stick_.x() += vx_c * stick_velocity_scale * delta_t;
   integrated_stick_.y() += vy_c * stick_velocity_scale * delta_t;
 
-  Eigen::VectorXd q_seed = q_solution_;
-  q_seed = clamp_joints(q_seed);
+  if (ik_active) {
+    // --- IK mode: solve for position, then inject wrist FK ---
+    const Eigen::Vector3d delta = ros_pos - unity_anchor_pos_;
+    const Eigen::Vector3d target_pos = arm_init_pos_ + delta;
 
-  if (auto result = solve_ik(target_pos, q_seed, ik_damping, ik_max_iterations, ik_tolerance);
-      result.has_value()) {
-    q_solution_ = *result;
-    // joint 4, 5 はソルバ外. FK 値を q_solution_ に注入する.
-    // wrist_joint_ids_[0]=joint 4 → stick_y, wrist_joint_ids_[1]=joint 5 → stick_x.
-    for (size_t i = 0; i < 2; ++i) {
-      if (wrist_joint_ids_[i] != static_cast<pinocchio::JointIndex>(-1)) {
-        const auto idx_q = model_.joints[wrist_joint_ids_[i]].idx_q();
-        const double raw = (i == 0)
-          ? wrist_init_pos_.y() + integrated_stick_.y()
-          : wrist_init_pos_.x() + integrated_stick_.x();
-        q_solution_[idx_q] = std::clamp(
-            raw,
-            model_.lowerPositionLimit[idx_q],
-            model_.upperPositionLimit[idx_q]);
-      }
+    Eigen::VectorXd q_seed = q_solution_;
+    q_seed = clamp_joints(q_seed);
+
+    auto result = solve_ik(target_pos, q_seed, ik_damping, ik_max_iterations, ik_tolerance);
+    if (!result.has_value()) {
+      return false;
     }
-    return true;
+    q_solution_ = *result;
+  } else {
+    // --- Wrist mode: position frozen, solve IK to stay at current EE position ---
+    pinocchio::forwardKinematics(model_, data_, q_solution_);
+    pinocchio::updateFramePlacements(model_, data_);
+    const Eigen::Vector3d current_ee = data_.oMf[ee_frame_id_].translation();
+
+    Eigen::VectorXd q_seed = q_solution_;
+    q_seed = clamp_joints(q_seed);
+
+    auto result = solve_ik(current_ee, q_seed, ik_damping, ik_max_iterations, ik_tolerance);
+    if (!result.has_value()) {
+      return false;
+    }
+    q_solution_ = *result;
   }
-  // IK 失敗: 古い q_solution_ を維持し, publish しない.
-  return false;
+
+  // --- FK injection for wrist joints (always) ---
+  for (size_t i = 0; i < 2; ++i) {
+    if (wrist_joint_ids_[i] != static_cast<pinocchio::JointIndex>(-1)) {
+      const auto idx_q = model_.joints[wrist_joint_ids_[i]].idx_q();
+      const double raw = (i == 0)
+        ? wrist_init_pos_.y() + integrated_stick_.y()
+        : wrist_init_pos_.x() + integrated_stick_.x();
+      q_solution_[idx_q] = std::clamp(
+          raw,
+          model_.lowerPositionLimit[idx_q],
+          model_.upperPositionLimit[idx_q]);
+    }
+  }
+
+  return true;
 }
 
 void TeleopIKNode::on_gripper(double value)
@@ -489,8 +507,10 @@ void TeleopIKNode::on_active_msg(const std_msgs::msg::Bool::SharedPtr msg)
 
 void TeleopIKNode::on_target_msg(const teleop_ik::msg::TargetPoseWithInput::SharedPtr msg)
 {
+  // NOTE: gamepad sends ik_active=false by default; hardcode true for now.
   const bool solved = on_target_with_input(
       msg->pose, msg->stick_x, msg->stick_y, msg->header.stamp,
+      /*ik_active=*/true,
       this->get_parameter("position_scale").as_double(),
       this->get_parameter("stick_velocity_scale").as_double(),
       this->get_parameter("stick_deadzone").as_double(),
