@@ -458,6 +458,29 @@ TEST_F(CallbacksFixture, IkInactiveFreezesPositionAndMovesWrist)
   EXPECT_NEAR(node_->q_solution_[idx_q_5], 0.0 + 0.05, 1e-6);
 }
 
+TEST_F(CallbacksFixture, IkModeReentryResetsAnchorToPreventJump)
+{
+  // 1st: anchor at origin (ik_active=true)
+  geometry_msgs::msg::Pose pose1;
+  pose1.position.x = 0.0; pose1.position.y = 0.0; pose1.position.z = 0.0;
+  EXPECT_FALSE(call_on_target_with_input(pose1, 0.0f, 0.0f, true));
+
+  // 2nd: enter wrist mode, drift controller to (0, -0.1, 0) - position ignored in wrist mode
+  geometry_msgs::msg::Pose pose2;
+  pose2.position.x = 0.0; pose2.position.y = -0.1; pose2.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(pose2, 0.0f, 0.0f, false));
+
+  // 3rd: return to IK mode at same drifted position (0, -0.1, 0)
+  // The anchor reset should absorb the drift: unity_anchor_pos_ = (0, -0.1, 0)
+  // so delta = (0) and target = arm_init (no jump).
+  call_on_target_with_input(pose2, 0.0f, 0.0f, true);
+
+  // Verify unity_anchor_pos_ was reset to current ros_pos (0, -0.1, 0)
+  EXPECT_NEAR(node_->unity_anchor_pos_.x(), 0.0, 1e-9);
+  EXPECT_NEAR(node_->unity_anchor_pos_.y(), -0.1, 1e-9);
+  EXPECT_NEAR(node_->unity_anchor_pos_.z(), 0.0, 1e-9);
+}
+
 TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForWristJoints)
 {
   // セッション開始で q_current_ の joint 4, 5 値を wrist_init_pos_ に保存.
