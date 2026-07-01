@@ -11,8 +11,6 @@
 pkgs.mkShell {
   name = "ros2nix ${rosDistro} shell";
   packages = [
-    pkgs.podman
-    pkgs.socat
     (pkgs.rosPackages.${rosDistro}.buildEnv {
       wrapPrograms = false;
       paths = [

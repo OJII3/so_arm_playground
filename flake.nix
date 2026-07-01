@@ -47,6 +47,7 @@
           pkgs = import nixpkgs { inherit system; };
           uloop = mkUloop pkgs;
           isLinux = pkgs.stdenv.isLinux;
+          isDarwin = pkgs.stdenv.isDarwin;
 
           commonPackages = [
             pkgs.git
@@ -75,20 +76,33 @@
         // {
           soarmvr = pkgs.callPackage ./SoArmVR/nix/dotnet-shell.nix { };
         }
-        # podman + socat シェル (`nix develop .#podman`). macOS で ros2_ws のコンテナ開発に使う.
-        // {
-          podman = pkgs.mkShell {
+        # RoboStack シェル (`nix develop .#robostack`). macOS で micromamba + ROS 2 を使う.
+        // pkgs.lib.optionalAttrs isDarwin {
+          robostack = pkgs.mkShell {
             packages = [
-              pkgs.podman
-              pkgs.socat
+              pkgs.micromamba
+              pkgs.git
             ];
             shellHook = ''
-              echo "ros2_ws podman shell"
+              echo "RoboStack ROS 2 shell (macOS)"
+
+              export MAMBA_ROOT_PREFIX="''${MAMBA_ROOT_PREFIX:-$HOME/.mamba}"
+              export MAMBA_EXE="$(command -v micromamba)"
+
+              if [ -n "$MAMBA_EXE" ] && "$MAMBA_EXE" env list 2>/dev/null | grep -q "^ros_jazzy[[:space:]]"; then
+                eval "$("$MAMBA_EXE" shell activate -n ros_jazzy --shell bash)"
+                echo "✓ RoboStack ros_jazzy environment activated"
+              else
+                echo "ℹ RoboStack ros_jazzy 環境が未作成です。"
+                echo "   以下のコマンドでセットアップしてください:"
+                echo "   (ros2_ws 内) ./robostack/setup.sh"
+                echo "   (リポジトリルート) cd ros2_ws && ./robostack/setup.sh"
+              fi
             '';
           };
         }
         # ROS 2 開発シェル (`nix develop .#ros`). nix-ros-overlay は Linux のみ実用なため
-        # darwin では定義しない (その場合は ros2_ws/podman/ を使う).
+        # darwin では定義しない (その場合は #robostack を使う).
         // pkgs.lib.optionalAttrs isLinux {
           ros =
             let
