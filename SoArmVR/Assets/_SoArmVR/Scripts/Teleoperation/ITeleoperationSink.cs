@@ -15,5 +15,7 @@ namespace SoArmVR.Teleoperation
 
         /// <summary>テレオペセッション終了時に一度呼ばれる。</summary>
         void OnSessionEnd();
+
+        void PublishReset();
     }
 }
