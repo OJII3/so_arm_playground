@@ -417,17 +417,22 @@ TEST_F(TeleopIKHelpersTest, SolveIkKeepsJoint4Fixed)
 
 TEST_F(CallbacksFixture, IkInactiveFreezesPositionAndMovesWrist)
 {
+  node_->unity_anchor_set_ = false;
+
   geometry_msgs::msg::Pose anchor_pose;
   anchor_pose.position.x = 0.0;
   anchor_pose.position.y = 0.0;
   anchor_pose.position.z = 0.0;
   EXPECT_FALSE(call_on_target_with_input(anchor_pose, 0.0f, 0.0f, true));
+  EXPECT_TRUE(node_->unity_anchor_set_);
 
   const auto & model = node_->model_;
-  const auto idx_q_4 = model.getJointId("4") != pinocchio::JointIndex(-1)
-    ? model.joints[model.getJointId("4")].idx_q() : -1;
-  const auto idx_q_5 = model.getJointId("5") != pinocchio::JointIndex(-1)
-    ? model.joints[model.getJointId("5")].idx_q() : -1;
+  const auto jid_4 = model.getJointId("4");
+  const auto jid_5 = model.getJointId("5");
+  ASSERT_NE(jid_4, pinocchio::JointIndex(-1));
+  ASSERT_NE(jid_5, pinocchio::JointIndex(-1));
+  const auto idx_q_4 = model.joints[jid_4].idx_q();
+  const auto idx_q_5 = model.joints[jid_5].idx_q();
   ASSERT_GE(idx_q_4, 0);
   ASSERT_GE(idx_q_5, 0);
 
@@ -446,8 +451,11 @@ TEST_F(CallbacksFixture, IkInactiveFreezesPositionAndMovesWrist)
   const Eigen::Vector3d after_pos = node_->data_.oMf[node_->ee_frame_id_].translation();
   EXPECT_LT((after_pos - before_pos).norm(), 5e-3);
 
-  EXPECT_GT(std::abs(node_->q_solution_[idx_q_4] - node_->wrist_init_pos_.y()), 1e-6);
-  EXPECT_GT(std::abs(node_->q_solution_[idx_q_5] - node_->wrist_init_pos_.x()), 1e-6);
+  EXPECT_NEAR(node_->integrated_stick_.x(), 0.05, 1e-6);
+  EXPECT_NEAR(node_->integrated_stick_.y(), 0.03, 1e-6);
+
+  EXPECT_NEAR(node_->q_solution_[idx_q_4], 0.0 + 0.03, 1e-6);
+  EXPECT_NEAR(node_->q_solution_[idx_q_5], 0.0 + 0.05, 1e-6);
 }
 
 TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForWristJoints)
