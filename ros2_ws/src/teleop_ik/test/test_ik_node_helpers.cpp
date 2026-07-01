@@ -227,10 +227,27 @@ CapturedTrajectories capture_reset(
       "/follower/gripper_controller/joint_trajectory", 10,
       [&](trajectory_msgs::msg::JointTrajectory::SharedPtr m) { out.gripper.push_back(*m); });
 
-  rclcpp::sleep_for(std::chrono::milliseconds(100));
+  auto wait_for = [&](auto predicate) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (std::chrono::steady_clock::now() < deadline) {
+      rclcpp::spin_some(probe);
+      if (predicate()) return true;
+      rclcpp::sleep_for(std::chrono::milliseconds(10));
+    }
+    return predicate();
+  };
+
+  wait_for([&]() {
+    return probe->count_publishers("/follower/arm_controller/joint_trajectory") > 0 &&
+           probe->count_publishers("/follower/gripper_controller/joint_trajectory") > 0;
+  });
 
   node->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
-  rclcpp::spin_some(node);
+
+  wait_for([&]() {
+    return out.arm.size() >= 1 && out.gripper.size() >= 1;
+  });
+
   rclcpp::spin_some(probe);
 
   return out;
