@@ -129,6 +129,13 @@ void TeleopIKNode::init_ros_node()
   this->declare_parameter<double>("stick_deadzone", 0.1);
   this->declare_parameter<double>("stick_max_delta_per_msg", 0.2);
   this->declare_parameter<double>("stick_fallback_dt", 0.0111);
+  this->declare_parameter<double>("home_j1_rad", 0.0);
+  this->declare_parameter<double>("home_j2_rad", 0.0);
+  this->declare_parameter<double>("home_j3_rad", 0.0);
+  this->declare_parameter<double>("home_j4_rad", 0.0);
+  this->declare_parameter<double>("home_j5_rad", 0.0);
+  this->declare_parameter<double>("home_j6_rad", 0.0);
+  this->declare_parameter<double>("reset_duration_sec", 2.0);
 
   // URDF 読み込み & モデル構築
   const auto urdf_path = this->get_parameter("urdf_path").as_string();
@@ -184,6 +191,9 @@ void TeleopIKNode::init_ros_node()
   sub_joint_states_ = this->create_subscription<sensor_msgs::msg::JointState>(
       "/follower/joint_states", 10,
       std::bind(&TeleopIKNode::on_joint_states_msg, this, std::placeholders::_1));
+  sub_reset_ = this->create_subscription<teleop_ik::msg::ResetCommand>(
+      "/teleop/reset", 10,
+      std::bind(&TeleopIKNode::on_reset_msg, this, std::placeholders::_1));
 
   pub_arm_ = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
       "/follower/arm_controller/joint_trajectory", 10);
@@ -522,6 +532,45 @@ void TeleopIKNode::on_joint_states_msg(const sensor_msgs::msg::JointState::Share
       on_joint_state(msg->name[i], msg->position[i]);
     }
   }
+}
+
+void TeleopIKNode::on_reset_msg(const teleop_ik::msg::ResetCommand::SharedPtr msg)
+{
+  on_reset(*msg);
+}
+
+void TeleopIKNode::on_reset(const teleop_ik::msg::ResetCommand & msg)
+{
+  std::array<double, 6> home{};
+  const std::array<const char *, 6> param_names = {
+    "home_j1_rad", "home_j2_rad", "home_j3_rad",
+    "home_j4_rad", "home_j5_rad", "home_j6_rad",
+  };
+  for (size_t i = 0; i < 6; ++i) {
+    if (!std::isnan(msg.home_joints[i])) {
+      home[i] = msg.home_joints[i];
+    } else {
+      home[i] = this->get_parameter(param_names[i]).as_double();
+    }
+  }
+
+  double duration = msg.duration_sec;
+  if (!(duration > 0.0)) {
+    duration = this->get_parameter("reset_duration_sec").as_double();
+  }
+
+  active_ = false;
+  unity_anchor_set_ = false;
+  integrated_stick_.setZero();
+
+  Eigen::VectorXd q_arm = Eigen::VectorXd::Zero(model_.nq);
+  for (size_t i = 0; i < 5; ++i) {
+    if (arm_joint_ids_[i] == static_cast<pinocchio::JointIndex>(-1)) continue;
+    const auto idx_q = model_.joints[arm_joint_ids_[i]].idx_q();
+    q_arm[idx_q] = home[i];
+  }
+  pub_arm_->publish(make_arm_trajectory(q_arm, duration));
+  pub_gripper_->publish(make_gripper_trajectory(home[5], duration));
 }
 
 }  // namespace teleop_ik

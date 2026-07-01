@@ -24,6 +24,10 @@ pure C# RTPS/DDS により直接 pub/sub する。
 > デフォルト (Reliable) のままだと DDS の QoS 非互換でマッチせず**メッセージが届かない**。
 > 購読側も `reliability=BEST_EFFORT` (例: `rclpy` の `QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT)`) に設定すること。
 
+## 入力アクション
+
+- **Reset**: 右コントローラ A ボタン. SO-101 を home 姿勢に戻す (IK バイパス).
+
 ## 独自 msg を追加する場合
 
 標準 msg は ROSettaDDS 同梱なので通常は生成不要。ROS 2 標準に無い独自 msg が必要に

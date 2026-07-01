@@ -22,6 +22,7 @@ namespace SoArmVR.Teleoperation
         Publisher<RosTargetPoseWithInput> _targetPub;
         Publisher<Float64Message> _gripperPub;
         Publisher<BoolMessage> _activePub;
+        Publisher<ResetCommand> _resetPub;
 
         void Awake()
         {
@@ -58,6 +59,13 @@ namespace SoArmVR.Teleoperation
                 "/teleop/active",
                 BoolMessageSerializer.Instance,
                 BoolMessage.DdsTypeName);
+
+            _resetPub = _participant.CreatePublisher<ResetCommand>(
+                "/teleop/reset",
+                ResetCommandSerializer.Instance,
+                ReliabilityQos.Reliable,
+                DurabilityQos.Volatile,
+                ResetCommand.DdsTypeName);
         }
 
         public void OnSessionBegin()
@@ -84,11 +92,13 @@ namespace SoArmVR.Teleoperation
             _targetPub?.Dispose();
             _gripperPub?.Dispose();
             _activePub?.Dispose();
+            _resetPub?.Dispose();
             _participant?.Dispose();
 
             _targetPub = null;
             _gripperPub = null;
             _activePub = null;
+            _resetPub = null;
             _participant = null;
         }
 
@@ -134,6 +144,28 @@ namespace SoArmVR.Teleoperation
             try
             {
                 await _activePub.PublishAsync(new BoolMessage(active));
+            }
+            catch (System.ObjectDisposedException) { }
+        }
+
+        public void PublishReset()
+        {
+            _ = PublishResetAsync();
+        }
+
+        async System.Threading.Tasks.Task PublishResetAsync()
+        {
+            if (_resetPub == null) return;
+            var now = System.DateTimeOffset.UtcNow;
+            var stamp = new RosTime((int)now.ToUnixTimeSeconds(), (uint)(now.Millisecond * 1_000_000));
+            var msg = new ResetCommand(
+                new Header(stamp, "teleop_reset"),
+                new float[] { float.NaN, float.NaN, float.NaN, float.NaN, float.NaN, float.NaN },
+                0.0f
+            );
+            try
+            {
+                await _resetPub.PublishAsync(msg);
             }
             catch (System.ObjectDisposedException) { }
         }

@@ -36,5 +36,10 @@ namespace SoArmVR.Teleoperation
         {
             Debug.Log($"[Teleoperation] session end ({_count} samples)");
         }
+
+        public void PublishReset()
+        {
+            // Debug sink does not forward to ROS.
+        }
     }
 }

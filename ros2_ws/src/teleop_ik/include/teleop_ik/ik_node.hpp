@@ -17,6 +17,7 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float64.hpp>
+#include <teleop_ik/msg/reset_command.hpp>
 #include <teleop_ik/msg/target_pose_with_input.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 
@@ -40,6 +41,8 @@ class TeleopIKNode : public rclcpp::Node
       : rclcpp::Node(node_name) {}
 
  private:
+  void on_reset(const teleop_ik::msg::ResetCommand & msg);
+
   // コンストラクタ初期化の本体. デフォルト / NodeOptions 両方から共有.
   void init_ros_node();
 
@@ -80,6 +83,7 @@ class TeleopIKNode : public rclcpp::Node
   void on_active_msg(const std_msgs::msg::Bool::SharedPtr msg);
   void on_target_msg(const teleop_ik::msg::TargetPoseWithInput::SharedPtr msg);
   void on_gripper_msg(const std_msgs::msg::Float64::SharedPtr msg);
+  void on_reset_msg(const teleop_ik::msg::ResetCommand::SharedPtr msg);
   void on_joint_states_msg(const sensor_msgs::msg::JointState::SharedPtr msg);
 
   // メンバ: テストから状態を組み立てるため public としている.
@@ -106,6 +110,7 @@ class TeleopIKNode : public rclcpp::Node
   rclcpp::Subscription<teleop_ik::msg::TargetPoseWithInput>::SharedPtr sub_target_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr sub_gripper_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr sub_joint_states_;
+  rclcpp::Subscription<teleop_ik::msg::ResetCommand>::SharedPtr sub_reset_;
   rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr pub_arm_;
   rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr pub_gripper_;
 };
