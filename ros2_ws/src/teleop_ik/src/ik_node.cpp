@@ -344,6 +344,7 @@ void TeleopIKNode::on_active(bool active)
       }
       integrated_stick_.setZero();
       last_msg_stamp_.reset();
+      prev_ik_active_ = true;
       active_ = true;
     } else {
       integrated_stick_.setZero();
@@ -420,6 +421,13 @@ bool TeleopIKNode::on_target_with_input(
   integrated_stick_.x() += vx_c * stick_velocity_scale * delta_t;
   integrated_stick_.y() += vy_c * stick_velocity_scale * delta_t;
 
+  // IK mode への再突入時、wrist mode 中に蓄積した VR controller drift を除去するため
+  // anchor を現在の ros_pos にリセットする。これにより復帰時の位置ジャンプを防ぐ。
+  if (ik_active && !prev_ik_active_ && unity_anchor_set_) {
+    unity_anchor_pos_ = ros_pos;
+  }
+  prev_ik_active_ = ik_active;
+
   if (ik_active) {
     // --- IK mode: solve for position, then inject wrist FK ---
     const Eigen::Vector3d delta = ros_pos - unity_anchor_pos_;
@@ -450,6 +458,10 @@ bool TeleopIKNode::on_target_with_input(
   }
 
   // --- FK injection for wrist joints (always) ---
+  // NOTE: IK 解決後に wrist joint (4, 5) を FK 注入で上書きするため、
+  // wrist joint が gripper frame 位置に影響するモデルでは、最終的な EE 位置が
+  // IK ターゲットからわずかにずれる (テストでは < 5e-3 を許容)。
+  // 厳密な位置固定が必要な場合は位置+向き IK への拡張が必要。
   for (size_t i = 0; i < 2; ++i) {
     if (wrist_joint_ids_[i] != static_cast<pinocchio::JointIndex>(-1)) {
       const auto idx_q = model_.joints[wrist_joint_ids_[i]].idx_q();
