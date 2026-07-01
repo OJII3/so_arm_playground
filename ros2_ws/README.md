@@ -130,6 +130,10 @@ SoArmVR の相対回転はローカル pitch を joint 4、ローカル roll を
 yaw は使用しない。joint 4・5 を回転目標に固定した上で、joint 1〜3 のみを位置 IK で解く。
 各フレームは直前に成功した IK 解を初期値にし、非収束時は最後の成功解を維持する。
 
+### リセット (VR A ボタン)
+
+SO-101 follower を home 姿勢に戻すには VR コントローラの A ボタン (`<XRController>{RightHand}/primaryButton`) を押す. 発行されるトピックは `/teleop/reset` (型: `teleop_ik/msg/ResetCommand`). `teleop_ik` ノードが受信し, `home_j1_rad`..`home_j6_rad` パラメータの値を使って IK バイパスで JointTrajectory を `/follower/arm_controller/joint_trajectory` と `/follower/gripper_controller/joint_trajectory` に publish する. 移動時間は `reset_duration_sec` (デフォルト 2.0 秒).
+
 ## 検証状況
 
 - Nix: `nix develop .#ros` の評価 (`x86_64-linux` / `aarch64-linux`) まで確認済み。
