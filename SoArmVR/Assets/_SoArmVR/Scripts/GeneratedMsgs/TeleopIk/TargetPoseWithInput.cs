@@ -20,16 +20,18 @@ namespace ROSettaDDS.Msgs.TeleopIk
         public Pose Pose;
         public float StickX;
         public float StickY;
+        public bool IkActive;
 
-        public TargetPoseWithInput(Header header, Pose pose, float stickX, float stickY)
+        public TargetPoseWithInput(Header header, Pose pose, float stickX, float stickY, bool ikActive)
         {
             Header = header;
             Pose = pose;
             StickX = stickX;
             StickY = stickY;
+            IkActive = ikActive;
         }
 
-        public override string ToString() => $"TargetPoseWithInput(header={Header}, pose={Pose}, stick_x={StickX}, stick_y={StickY})";
+        public override string ToString() => $"TargetPoseWithInput(header={Header}, pose={Pose}, stick_x={StickX}, stick_y={StickY}, ik_active={IkActive})";
     }
 
     public sealed class TargetPoseWithInputSerializer : ICdrSerializer<TargetPoseWithInput>
@@ -48,6 +50,7 @@ namespace ROSettaDDS.Msgs.TeleopIk
             total += 4;
             total += 3;
             total += 4;
+            total += 1;
             return total;
         }
 
@@ -57,6 +60,7 @@ namespace ROSettaDDS.Msgs.TeleopIk
             PoseSerializer.Instance.Serialize(ref writer, in value.Pose);
             writer.WriteFloat(value.StickX);
             writer.WriteFloat(value.StickY);
+            writer.WriteBool(value.IkActive);
         }
 
         public void Deserialize(ref CdrReader reader, out TargetPoseWithInput value)
@@ -65,7 +69,8 @@ namespace ROSettaDDS.Msgs.TeleopIk
             PoseSerializer.Instance.Deserialize(ref reader, out Pose pose);
             float stickX = reader.ReadFloat();
             float stickY = reader.ReadFloat();
-            value = new TargetPoseWithInput(header, pose, stickX, stickY);
+            bool ikActive = reader.ReadBool();
+            value = new TargetPoseWithInput(header, pose, stickX, stickY, ikActive);
         }
 
         public void SerializeKey(ref CdrWriter writer, in TargetPoseWithInput value)
