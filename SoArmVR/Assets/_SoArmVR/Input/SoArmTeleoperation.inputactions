@@ -98,7 +98,6 @@
                 {
                     "name": "",
                     "id": "4a8e3f20-d6b5-4c9f-8a23-9b0c1d2e3f4a",
-                    "type": "Button",
                     "path": "<XRController>{RightHand}/activate",
                     "interactions": "",
                     "processors": "",
