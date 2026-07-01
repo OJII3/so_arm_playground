@@ -507,10 +507,10 @@ void TeleopIKNode::on_active_msg(const std_msgs::msg::Bool::SharedPtr msg)
 
 void TeleopIKNode::on_target_msg(const teleop_ik::msg::TargetPoseWithInput::SharedPtr msg)
 {
-  // NOTE: gamepad sends ik_active=false by default; hardcode true for now.
+  // Use msg->ik_active directly. Gamepad sets it explicitly; VR controller can toggle.
   const bool solved = on_target_with_input(
       msg->pose, msg->stick_x, msg->stick_y, msg->header.stamp,
-      /*ik_active=*/true,
+      msg->ik_active,
       this->get_parameter("position_scale").as_double(),
       this->get_parameter("stick_velocity_scale").as_double(),
       this->get_parameter("stick_deadzone").as_double(),
