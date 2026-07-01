@@ -129,12 +129,9 @@ TEST_F(TeleopIKHelpersTest, SolveIkConvergesForReachablePositionTarget)
   EXPECT_LT((actual - target).norm(), 1e-4);
 }
 
-TEST_F(TeleopIKHelpersTest, SolveIkKeepsJoint5Fixed)
+TEST_F(TeleopIKHelpersTest, SolveIkKeepsWristJointsFixed)
 {
-  // position joint 1〜3 の seed を変えたが, joint 5 はソルバの対象外
-  // (FK 制御) なので seed 値が保持される.
-  // 一方 joint 4 は新方式で position_joint_ids_ に含まれているため,
-  // ソルバの冗長 DOF 解決で動きうる. ここでは joint 5 のみ検証する.
+  // joint 4, 5 はどちらもソルバ外 (FK 制御) なので seed 値が保持される.
   Eigen::VectorXd seed = node_->q_current_;
   const auto idx_q_4 = node_->model_.joints[node_->model_.getJointId("4")].idx_q();
   const auto idx_q_5 = node_->model_.joints[node_->model_.getJointId("5")].idx_q();
@@ -146,9 +143,9 @@ TEST_F(TeleopIKHelpersTest, SolveIkKeepsJoint5Fixed)
     Eigen::Vector3d(0.0, -0.005, 0.0);
   const auto result = node_->solve_ik(target, seed, 1e-6, 100, 1e-4);
   ASSERT_TRUE(result.has_value());
-  // joint 5 はソルバ外なので seed 値が保持される.
+  // joint 4, 5 はソルバ外なので seed 値が保持される.
+  EXPECT_NEAR((*result)[idx_q_4], 0.2, 1e-9);
   EXPECT_NEAR((*result)[idx_q_5], -0.3, 1e-9);
-  // 参考: joint 4 はソルバ内だが, このテストでは特に値を固定しない.
 }
 
 // ---- 統合 callback 系 ----
@@ -384,51 +381,48 @@ TEST_F(CallbacksFixture, StickMaxDeltaPerMsgClampsIntegration)
   EXPECT_NEAR(node_->integrated_stick_.y(), 0.05, 1e-9);
 }
 
-TEST_F(TeleopIKHelpersTest, SolveIkHasFourPositionJoints)
+TEST_F(TeleopIKHelpersTest, SolveIkHasThreePositionJoints)
 {
-  // 新方式: position_joint_ids_ には joint 1, 2, 3, 4 が入る.
-  EXPECT_EQ(node_->position_joint_ids_.size(), 4u);
+  // IK ソルバ対象: joint 1, 2, 3 (3DOF, 3D 位置ターゲット).
+  EXPECT_EQ(node_->position_joint_ids_.size(), 3u);
 }
 
-TEST_F(TeleopIKHelpersTest, SolveIkAdjustsJoint4)
+TEST_F(TeleopIKHelpersTest, SolveIkKeepsJoint4Fixed)
 {
-  // joint 4 は position_joint_ids_ に含まれているため, IK の seed 値から
-  // ソルバが動かすことが許容される. ここでは position_joint_ids_ に
-  // joint 4 が含まれていることだけ検証する.
+  // joint 4 は IK ソルバ外 (FK 制御) なので seed 値が保持される.
   const auto jid_4 = node_->model_.getJointId("4");
-  EXPECT_NE(
+  EXPECT_EQ(
       std::find(
           node_->position_joint_ids_.begin(),
           node_->position_joint_ids_.end(),
           jid_4),
       node_->position_joint_ids_.end());
 
-  // さらに, ソルバが joint 4 を変更しうることを確認するため, ターゲットを
-  // 少しだけ動かして solve_ik を呼ぶ. joint 4 の seed 値はソルバの
-  // 冗長 DOF 解決によって変化しうる (変化しなくても許容).
-  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_current_);
-  pinocchio::updateFramePlacements(node_->model_, node_->data_);
-  const Eigen::Vector3d current = node_->data_.oMf[node_->ee_frame_id_].translation();
-  const Eigen::Vector3d target = current + Eigen::Vector3d(0.0, -0.01, 0.0);
-  const auto idx_q_4 = node_->model_.joints[node_->model_.getJointId("4")].idx_q();
+  const auto idx_q_4 = node_->model_.joints[jid_4].idx_q();
   Eigen::VectorXd seed = node_->q_current_;
-  seed[idx_q_4] = 0.0;  // 現在値から意図的にずらす
+  seed[idx_q_4] = 0.3;
+  pinocchio::forwardKinematics(node_->model_, node_->data_, seed);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d target = node_->data_.oMf[node_->ee_frame_id_].translation() +
+    Eigen::Vector3d(0.0, -0.005, 0.0);
   const auto result = node_->solve_ik(target, seed, 1e-6, 100, 1e-4);
   ASSERT_TRUE(result.has_value());
-  // joint 4 が joints 制限内に収まっている.
-  EXPECT_GE((*result)[idx_q_4], node_->model_.lowerPositionLimit[idx_q_4] - 1e-9);
-  EXPECT_LE((*result)[idx_q_4], node_->model_.upperPositionLimit[idx_q_4] + 1e-9);
+  // joint 4 はソルバ外なので seed 値が保持される.
+  EXPECT_NEAR((*result)[idx_q_4], 0.3, 1e-9);
 }
 
-TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForJoint5)
+TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForWristJoints)
 {
-  // セッション開始で q_current_ の joint 5 値を wrist_init_pos_.x() に保存.
+  // セッション開始で q_current_ の joint 4, 5 値を wrist_init_pos_ に保存.
   node_->active_ = false;
+  const auto idx_q_4 = node_->model_.joints[node_->model_.getJointId("4")].idx_q();
   const auto idx_q_5 = node_->model_.joints[node_->model_.getJointId("5")].idx_q();
+  node_->q_current_[idx_q_4] = 0.3;
   node_->q_current_[idx_q_5] = 0.5;
   std_msgs::msg::Bool true_msg;
   true_msg.data = true;
   node_->on_active_msg(std::make_shared<std_msgs::msg::Bool>(true_msg));
+  ASSERT_NEAR(node_->wrist_init_pos_.y(), 0.3, 1e-9);
   ASSERT_NEAR(node_->wrist_init_pos_.x(), 0.5, 1e-9);
 
   // 1 回目: anchor 設定 (pose = origin).
@@ -438,28 +432,32 @@ TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForJoint5)
   pose_anchor.position.z = 0.0;
   EXPECT_FALSE(call_on_target_with_input(pose_anchor, 0.0f, 0.0f));
 
-  // 2 回目: stick_x = 1.0 で 1 メッセージ分だけ積分.
+  // 2 回目: stick_x = 1.0, stick_y = 0.5 で積分.
   // CallbacksFixture では stick_velocity_scale=1.0, stick_fallback_dt=0.1, cap=10.0.
-  // → integrated_stick_.x() = 0.1
+  // → integrated_stick_.x() = 0.1, integrated_stick_.y() = 0.05
   geometry_msgs::msg::Pose pose2;
   pose2.position.x = 0.0;
   pose2.position.y = -0.05;
   pose2.position.z = 0.0;
-  EXPECT_TRUE(call_on_target_with_input(pose2, 1.0f, 0.0f));
+  EXPECT_TRUE(call_on_target_with_input(pose2, 1.0f, 0.5f));
 
+  // q_solution_[idx_q_4] = wrist_init_pos_.y() + integrated_stick_.y()
+  //                       = 0.3 + 0.05 = 0.35
+  EXPECT_NEAR(node_->q_solution_[idx_q_4], 0.35, 1e-6);
   // q_solution_[idx_q_5] = wrist_init_pos_.x() + integrated_stick_.x()
-  //                       = 0.5 + 0.1 = 0.6 が publish される.
+  //                       = 0.5 + 0.1 = 0.6
   EXPECT_NEAR(node_->q_solution_[idx_q_5], 0.6, 1e-6);
 }
 
-TEST_F(CallbacksFixture, OnTargetWithInputClampsFkJoint5ToLimit)
+TEST_F(CallbacksFixture, OnTargetWithInputClampsFkForWristJointsToLimit)
 {
-  // joint 5 の upper limit を取得し, wrist_init_pos_.x() を limit - 0.1 にセット.
-  // integrated_stick_.x() を +1.0 に直接セット (limit を超える量).
-  // → q_solution_[idx_q_5] は upperPositionLimit に clamp されるはず.
+  // joint 4, 5 の upper limit を超える integrated_stick_ を与え, clamp を検証.
   node_->active_ = false;
+  const auto idx_q_4 = node_->model_.joints[node_->model_.getJointId("4")].idx_q();
   const auto idx_q_5 = node_->model_.joints[node_->model_.getJointId("5")].idx_q();
+  const double upper_4 = node_->model_.upperPositionLimit[idx_q_4];
   const double upper_5 = node_->model_.upperPositionLimit[idx_q_5];
+  node_->q_current_[idx_q_4] = upper_4 - 0.1;
   node_->q_current_[idx_q_5] = upper_5 - 0.1;
   std_msgs::msg::Bool true_msg;
   true_msg.data = true;
@@ -472,15 +470,17 @@ TEST_F(CallbacksFixture, OnTargetWithInputClampsFkJoint5ToLimit)
   pose_anchor.position.z = 0.0;
   EXPECT_FALSE(call_on_target_with_input(pose_anchor, 0.0f, 0.0f));
 
-  // 2 回目: integrated_stick_ を limit を超える量に強制セットして IK を走らせる.
+  // 2 回目: integrated_stick_ を limit を超える量に強制セット.
   geometry_msgs::msg::Pose pose2;
   pose2.position.x = 0.0;
   pose2.position.y = -0.05;
   pose2.position.z = 0.0;
-  node_->integrated_stick_.x() = 1.0;  // upper - 0.1 + 1.0 = upper + 0.9 → clamp
+  node_->integrated_stick_.x() = 1.0;
+  node_->integrated_stick_.y() = 1.0;
   EXPECT_TRUE(call_on_target_with_input(pose2, 0.0f, 0.0f));
 
-  // q_solution_[idx_q_5] は upperPositionLimit にクランプされる.
+  // q_solution_ は upperPositionLimit にクランプされる.
+  EXPECT_NEAR(node_->q_solution_[idx_q_4], upper_4, 1e-9);
   EXPECT_NEAR(node_->q_solution_[idx_q_5], upper_5, 1e-9);
 }
 

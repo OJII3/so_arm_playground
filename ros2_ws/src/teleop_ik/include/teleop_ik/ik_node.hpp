@@ -91,8 +91,8 @@ class TeleopIKNode : public rclcpp::Node
   pinocchio::Data data_;
   pinocchio::FrameIndex ee_frame_id_ = 0;
   std::array<pinocchio::JointIndex, 5> arm_joint_ids_{};
-  std::array<pinocchio::JointIndex, 4> position_joint_ids_{};
-  std::array<pinocchio::JointIndex, 1> wrist_joint_ids_{};
+  std::array<pinocchio::JointIndex, 3> position_joint_ids_{};
+  std::array<pinocchio::JointIndex, 2> wrist_joint_ids_{};
 
   // セッション状態 (active 中のみ有効).
   bool active_ = false;
