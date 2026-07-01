@@ -31,9 +31,13 @@ namespace SoArmVR.Teleoperation
         [SerializeField, Tooltip("スティック入力(右親指スティック -1..1)")]
         InputActionProperty _stickAction;
 
+        [SerializeField, Tooltip("リセット発火（右コントローラ A ボタン押下の瞬間に 1 回）")]
+        InputActionProperty _resetAction;
+
         ITeleoperationSink _sink;
         bool _active;
         int _sampleId;
+        bool _prevResetPressed;
 
         void Awake()
         {
@@ -47,6 +51,7 @@ namespace SoArmVR.Teleoperation
             _teleoperateAction.action?.Enable();
             _gripperAction.action?.Enable();
             _stickAction.action?.Enable();
+            _resetAction.action?.Enable();
         }
 
         void OnDisable()
@@ -54,6 +59,7 @@ namespace SoArmVR.Teleoperation
             _teleoperateAction.action?.Disable();
             _gripperAction.action?.Disable();
             _stickAction.action?.Disable();
+            _resetAction.action?.Disable();
             if (_active)
                 EndSession();
         }
@@ -68,6 +74,11 @@ namespace SoArmVR.Teleoperation
 
             if (_active)
                 PushSample();
+
+            bool reset_pressed = _resetAction.action != null && _resetAction.action.IsPressed();
+            if (reset_pressed && !_prevResetPressed)
+                _sink?.PublishReset();
+            _prevResetPressed = reset_pressed;
         }
 
         void BeginSession()
