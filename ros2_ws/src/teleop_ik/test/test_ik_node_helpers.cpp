@@ -16,7 +16,9 @@
 #include <pinocchio/algorithm/joint-configuration.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
 
+#include <teleop_ik/msg/reset_command.hpp>
 #include "teleop_ik/ik_node.hpp"
 
 namespace
@@ -183,6 +185,27 @@ struct CallbacksFixture : public TeleopIKHelpersTest
         /*ik_max_iterations=*/100,
         /*ik_tolerance=*/1e-4);
   }
+};
+
+struct ResetFixture : public TeleopIKHelpersTest
+{
+  void SetUp() override
+  {
+    const char * path = std::getenv("TELEOP_IK_TEST_URDF_PATH");
+    ASSERT_NE(path, nullptr) << "Set TELEOP_IK_TEST_URDF_PATH to expanded URDF file path";
+    rclcpp::NodeOptions opts;
+    opts.parameter_overrides().push_back(rclcpp::Parameter("urdf_path", std::string(path)));
+    for (size_t i = 0; i < 6; ++i) {
+      const std::string name = "home_j" + std::to_string(i + 1) + "_rad";
+      opts.parameter_overrides().push_back(
+          rclcpp::Parameter(name, 0.1 * static_cast<double>(i + 1)));
+    }
+    opts.parameter_overrides().push_back(
+        rclcpp::Parameter("reset_duration_sec", 1.5));
+    node_ = std::make_shared<teleop_ik::TeleopIKNode>(opts);
+    ASSERT_NE(node_, nullptr);
+  }
+  std::shared_ptr<teleop_ik::TeleopIKNode> node_;
 };
 }  // namespace
 
@@ -414,4 +437,122 @@ TEST_F(CallbacksFixture, OnTargetWithInputClampsFkJoint5ToLimit)
 
   // q_solution_[idx_q_5] は upperPositionLimit にクランプされる.
   EXPECT_NEAR(node_->q_solution_[idx_q_5], upper_5, 1e-9);
+}
+
+// ---- ResetCommand 経路 ----
+
+TEST_F(ResetFixture, OnResetUsesParamDefaultsForAllNaN)
+{
+  teleop_ik::msg::ResetCommand msg;
+  for (size_t i = 0; i < 6; ++i) {
+    msg.home_joints[i] = std::numeric_limits<float>::quiet_NaN();
+  }
+  msg.duration_sec = 0.0f;
+
+  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
+
+  // セッションがクリアされる.
+  EXPECT_FALSE(node_->active_);
+}
+
+TEST_F(ResetFixture, OnResetPartialOverride)
+{
+  teleop_ik::msg::ResetCommand msg;
+  msg.home_joints[0] = 0.7f;
+  for (size_t i = 1; i < 6; ++i) {
+    msg.home_joints[i] = std::numeric_limits<float>::quiet_NaN();
+  }
+  msg.duration_sec = 0.0f;
+
+  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
+
+  EXPECT_FALSE(node_->active_);
+}
+
+TEST_F(ResetFixture, OnResetUsesProvidedDuration)
+{
+  teleop_ik::msg::ResetCommand msg;
+  msg.duration_sec = 0.5f;
+
+  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
+
+  EXPECT_FALSE(node_->active_);
+}
+
+TEST_F(ResetFixture, OnResetDurationFallsBackOnZeroOrNaN)
+{
+  teleop_ik::msg::ResetCommand msg;
+  msg.duration_sec = 0.0f;
+
+  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
+
+  EXPECT_FALSE(node_->active_);
+}
+
+TEST_F(ResetFixture, OnResetClearsActiveSession)
+{
+  node_->active_ = true;
+  node_->unity_anchor_set_ = true;
+  node_->unity_anchor_pos_ = Eigen::Vector3d(1.0, 2.0, 3.0);
+  node_->integrated_stick_ = Eigen::Vector2d(0.4, 0.5);
+
+  teleop_ik::msg::ResetCommand msg;
+  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
+
+  EXPECT_FALSE(node_->active_);
+  EXPECT_FALSE(node_->unity_anchor_set_);
+  EXPECT_EQ(node_->integrated_stick_.x(), 0.0);
+  EXPECT_EQ(node_->integrated_stick_.y(), 0.0);
+}
+
+TEST_F(ResetFixture, OnResetPublishesArmAndGripper)
+{
+  auto probe = std::make_shared<rclcpp::Node>("reset_probe");
+  std::vector<trajectory_msgs::msg::JointTrajectory> arm_msgs;
+  std::vector<trajectory_msgs::msg::JointTrajectory> gripper_msgs;
+  auto arm_sub = probe->create_subscription<trajectory_msgs::msg::JointTrajectory>(
+      "/follower/arm_controller/joint_trajectory", 10,
+      [&](trajectory_msgs::msg::JointTrajectory::SharedPtr m) { arm_msgs.push_back(*m); });
+  auto gripper_sub = probe->create_subscription<trajectory_msgs::msg::JointTrajectory>(
+      "/follower/gripper_controller/joint_trajectory", 10,
+      [&](trajectory_msgs::msg::JointTrajectory::SharedPtr m) { gripper_msgs.push_back(*m); });
+
+  teleop_ik::msg::ResetCommand msg;
+  for (size_t i = 0; i < 6; ++i) {
+    msg.home_joints[i] = std::numeric_limits<float>::quiet_NaN();
+  }
+  msg.duration_sec = 0.0f;
+  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
+
+  rclcpp::spin_some(node_);
+  rclcpp::spin_some(probe);
+
+  ASSERT_EQ(arm_msgs.size(), 1u);
+  ASSERT_EQ(gripper_msgs.size(), 1u);
+  ASSERT_EQ(arm_msgs[0].joint_names.size(), 5u);
+  ASSERT_EQ(arm_msgs[0].points.size(), 1u);
+  EXPECT_EQ(arm_msgs[0].points[0].positions.size(), 5u);
+  EXPECT_NEAR(arm_msgs[0].points[0].positions[0], 0.1, 1e-6);
+  EXPECT_NEAR(arm_msgs[0].points[0].positions[1], 0.2, 1e-6);
+  EXPECT_NEAR(arm_msgs[0].points[0].positions[2], 0.3, 1e-6);
+  EXPECT_NEAR(arm_msgs[0].points[0].positions[3], 0.4, 1e-6);
+  EXPECT_NEAR(arm_msgs[0].points[0].positions[4], 0.5, 1e-6);
+  EXPECT_NEAR(rclcpp::Duration(arm_msgs[0].points[0].time_from_start).seconds(), 1.5, 1e-6);
+  ASSERT_EQ(gripper_msgs[0].joint_names.size(), 1u);
+  ASSERT_EQ(gripper_msgs[0].points.size(), 1u);
+  EXPECT_EQ(gripper_msgs[0].points[0].positions.size(), 1u);
+  EXPECT_NEAR(gripper_msgs[0].points[0].positions[0], 0.6, 1e-6);
+}
+
+TEST_F(ResetFixture, OnResetDoesNotInvokeSolver)
+{
+  node_->q_solution_ = node_->q_current_;
+
+  teleop_ik::msg::ResetCommand msg;
+  for (size_t i = 0; i < 6; ++i) {
+    msg.home_joints[i] = std::numeric_limits<float>::quiet_NaN();
+  }
+  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
+
+  EXPECT_NEAR((node_->q_solution_ - node_->q_current_).norm(), 0.0, 1e-9);
 }
