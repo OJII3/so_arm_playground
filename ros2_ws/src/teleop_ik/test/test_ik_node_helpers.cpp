@@ -167,12 +167,13 @@ struct CallbacksFixture : public TeleopIKHelpersTest
     node_->last_msg_stamp_.reset();
   }
   bool call_on_target_with_input(
-      const geometry_msgs::msg::Pose & pose, float sx, float sy)
+      const geometry_msgs::msg::Pose & pose, float sx, float sy,
+      bool ik_active = true)
   {
     builtin_interfaces::msg::Time stamp;
     return node_->on_target_with_input(
         pose, sx, sy, stamp,
-        /*ik_active=*/true,
+        /*ik_active=*/ik_active,
         /*position_scale=*/1.0,
         /*stick_velocity_scale=*/1.0,
         /*stick_deadzone=*/0.0,
@@ -412,6 +413,41 @@ TEST_F(TeleopIKHelpersTest, SolveIkKeepsJoint4Fixed)
   ASSERT_TRUE(result.has_value());
   // joint 4 はソルバ外なので seed 値が保持される.
   EXPECT_NEAR((*result)[idx_q_4], 0.3, 1e-9);
+}
+
+TEST_F(CallbacksFixture, IkInactiveFreezesPositionAndMovesWrist)
+{
+  geometry_msgs::msg::Pose anchor_pose;
+  anchor_pose.position.x = 0.0;
+  anchor_pose.position.y = 0.0;
+  anchor_pose.position.z = 0.0;
+  EXPECT_FALSE(call_on_target_with_input(anchor_pose, 0.0f, 0.0f, true));
+
+  const auto & model = node_->model_;
+  const auto idx_q_4 = model.getJointId("4") != pinocchio::JointIndex(-1)
+    ? model.joints[model.getJointId("4")].idx_q() : -1;
+  const auto idx_q_5 = model.getJointId("5") != pinocchio::JointIndex(-1)
+    ? model.joints[model.getJointId("5")].idx_q() : -1;
+  ASSERT_GE(idx_q_4, 0);
+  ASSERT_GE(idx_q_5, 0);
+
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d before_pos = node_->data_.oMf[node_->ee_frame_id_].translation();
+
+  geometry_msgs::msg::Pose moved_pose;
+  moved_pose.position.x = 0.1;
+  moved_pose.position.y = 0.0;
+  moved_pose.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(moved_pose, 0.5f, 0.3f, false));
+
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d after_pos = node_->data_.oMf[node_->ee_frame_id_].translation();
+  EXPECT_LT((after_pos - before_pos).norm(), 5e-3);
+
+  EXPECT_GT(std::abs(node_->q_solution_[idx_q_4] - node_->wrist_init_pos_.y()), 1e-6);
+  EXPECT_GT(std::abs(node_->q_solution_[idx_q_5] - node_->wrist_init_pos_.x()), 1e-6);
 }
 
 TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForWristJoints)
