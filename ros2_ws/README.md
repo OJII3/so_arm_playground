@@ -26,8 +26,8 @@ SO-101 を ROS 2 (Jazzy) / ros2_control / MoveIt 2 で制御するための colc
 ```
 ros2_ws/
 ├── src/        … vendored ROS 2 パッケージ
-├── nix/        … ros2nix 生成の Nix 式 + LibSerial derivation
-└── podman/     … コンテナによる退避路 (macOS など)
+├── nix/         … ros2nix 生成の Nix 式 + LibSerial derivation
+└── robostack/   … RoboStack (conda) 環境定義 (macOS 推奨)
 ```
 
 `build/` `install/` `log/` はリポジトリルートの `.gitignore` で除外。
@@ -46,9 +46,8 @@ source install/setup.bash
 ```
 
 direnv を使う場合は `cd ros2_ws` するだけで ROS シェルに自動で切り替わる
-(`ros2_ws/.envrc` がルート flake の `#ros` を読み込む)。`colcon build` 済みなら
-`install/setup.bash` も自動 source される。初回だけ `direnv allow` が必要。
-macOS では native に動かないため podman を案内する (上記 方法 B)。
+(`ros2_ws/.envrc` がルート flake の `#ros` (Linux) または `#robostack` (macOS) を読み込む)。
+`colcon build` 済みなら `install/setup.bash` も自動 source される。初回だけ `direnv allow` が必要。
 
 `nix/` を再生成する場合 (`package.xml` を変更したとき):
 
@@ -62,40 +61,49 @@ nix run github:wentasah/ros2nix -- \
 > LibSerial (crayzeewulf/LibSerial) は nixpkgs に無いため `nix/libserial.nix` で自作し、
 > flake から `extraPkgs.libserial-dev` として注入している。
 
-## 起動方法 B: podman (macOS / 退避路)
+## 起動方法 B: RoboStack (macOS 推奨)
 
-`podman` は nix devShell (`nix develop`) に含まれている。
+[RoboStack](https://robostack.github.io/) は conda-forge ベースの ROS 2 ディストリビューション。
+macOS でもネイティブに ROS 2 (Jazzy) が動く (一部未検証)。Nix devShell `#robostack` が `micromamba` を提供する。
 
 ### 初回セットアップ
 
 ```bash
-./podman/setup.sh    # podman machine を初期化・起動
+nix develop .#robostack          # micromamba を含む shell に入る
+cd ros2_ws
+./robostack/setup.sh             # ros_jazzy 環境を作成 (時間がかかる)
 ```
 
-### コンテナ起動
+### 日常の使い方
 
 ```bash
-./podman/run.sh                  # イメージを build して対話シェル
-./podman/run.sh ros2 launch lerobot_description so101_display.launch.py
-REBUILD=1 ./podman/run.sh        # イメージを強制リビルド
+nix develop .#robostack          # micromamba + ros_jazzy 環境を自動 activation
+cd ros2_ws
+colcon build --symlink-install
+source install/setup.bash
 ```
 
-### macOS で実機制御 (socat ブリッジ)
+direnv を使う場合は `cd ros2_ws` するだけで自動で切り替わる
+(`ros2_ws/.envrc` がルート flake の `#robostack` を読み込む)。
 
-macOS の podman machine (applehv) は USB パススルーに非対応のため、
-socat で Mac 上のシリアルポートを TCP に変換し、コンテナ内で仮想シリアルに戻す。
+### macOS で実機制御 (未検証)
+
+macOS では `/dev/tty.usbmodem*` として認識されるシリアルポートを直接使用できる想定 (socat ブリッジ不要)。
+実機制御は `libserial` の conda パッケージが未確認のため、実際の動作確認が必要。
 
 ```bash
-# ターミナル 1: シリアルブリッジを起動
-./podman/serial-bridge.sh                              # 自動検出
-./podman/serial-bridge.sh /dev/tty.usbmodemXXXX        # 明示指定
-
-# ターミナル 2: コンテナ起動 (ブリッジを検出して /dev/ttyACM0 を自動作成)
-./podman/run.sh
+# シリアルポートを確認
+ls /dev/tty.usbmodem*
+# 実機起動 (要検証)
+ros2 launch lerobot_controller so101_follower_controller.launch.py \
+  is_sim:=False usb_port:=/dev/tty.usbmodemXXXX
 ```
 
-- rviz/MoveIt GUI は X11 forwarding (`DISPLAY` と `/tmp/.X11-unix`)。事前に `xhost +local:` が必要な場合あり。
-- Linux ホストではブリッジ不要 — `--device` で直接マウントされる。
+rviz/MoveIt GUI は macOS ネイティブで動作する想定 (X11 不要)。こちらも未検証。
+
+> **Note**: `feetech_ros2_driver` が依存する `libserial` (crayzeewulf/LibSerial) は conda-forge にパッケージが無い可能性がある。
+> ビルド時に `pkg_check_modules(SERIAL libserial REQUIRED)` が失敗する場合は、
+> `brew install libserial` か手動インストールが必要。
 
 
 ## 代表的なコマンド
@@ -133,6 +141,8 @@ yaw は使用しない。joint 4・5 を回転目標に固定した上で、join
 ## 検証状況
 
 - Nix: `nix develop .#ros` の評価 (`x86_64-linux` / `aarch64-linux`) まで確認済み。
+- RoboStack: `nix develop .#robostack` の評価 (`aarch64-darwin`) まで確認済み。
+  `micromamba env create` / `colcon build` / rviz 起動は未検証。
 - **未検証 (要 Linux 実機/VM)**: `colcon build` の実通過、rviz/Gazebo/MoveIt の起動、
   `/dev/ttyACM0` 経由の実機サーボ動作・キャリブレーション。macOS 開発機では実行不可のため、
   Linux ホストでの確認が必要。

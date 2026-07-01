@@ -1,0 +1,31 @@
+# RoboStack conda environment for ROS 2 Jazzy (macOS)
+# 作成: micromamba env create -n ros_jazzy -f environment.yaml
+# 更新: micromamba env update -n ros_jazzy -f environment.yaml
+name: ros_jazzy
+channels:
+  - conda-forge
+  - robostack-jazzy
+dependencies:
+  - catkin_pkg
+  - cmake
+  - colcon-common-extensions
+  - compilers
+  - fmt
+  - make
+  - ninja
+  - pinocchio
+  - pkg-config
+  - python=3.12
+  - range-v3
+  - ros-jazzy-desktop
+  - ros-jazzy-moveit2
+  - ros-jazzy-ros2-control
+  - ros-jazzy-ros2-controllers
+  - ros-jazzy-ros-gz-bridge
+  - ros-jazzy-ros-gz-sim
+  - spdlog
+  - tl-expected
+
+  # libserial (crayzeewulf/LibSerial) は conda-forge に無い可能性あり。
+  # 必要な場合は brew install libserial か、手動ビルドで対応する。
+  # - libserial
