@@ -27,6 +27,7 @@ find_package(pinocchio REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   msg/TargetPoseWithInput.msg
+  msg/ResetCommand.msg
   DEPENDENCIES geometry_msgs std_msgs
 )
 
