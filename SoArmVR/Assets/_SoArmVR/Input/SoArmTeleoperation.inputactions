@@ -40,6 +40,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
+                },
+                {
+                    "name": "IkActive",
+                    "type": "Button",
+                    "id": "3f7d2e10-c5a4-4b8e-9f12-7a8b9c0d1e2f",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -84,6 +93,17 @@
                     "processors": "",
                     "groups": "",
                     "action": "Reset",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "type": "Button",
+                    "path": "<XRController>{RightHand}/activate",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "IkActive",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
