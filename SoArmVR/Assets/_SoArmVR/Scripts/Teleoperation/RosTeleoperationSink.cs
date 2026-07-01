@@ -116,7 +116,8 @@ namespace SoArmVR.Teleoperation
                     new RosQuaternion(sample.rotation.x, sample.rotation.y, sample.rotation.z, sample.rotation.w)
                 ),
                 sample.stick.x,
-                sample.stick.y
+                sample.stick.y,
+                sample.ikActive
             );
 
             try
