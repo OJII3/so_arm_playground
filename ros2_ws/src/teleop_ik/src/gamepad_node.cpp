@@ -110,6 +110,8 @@ void GamepadTeleopNode::timer_tick()
   msg.pose.orientation.w = 1.0;
   msg.stick_x = 0.0f;
   msg.stick_y = 0.0f;
+  // gamepad is always in IK mode (no trigger toggle available).
+  msg.ik_active = true;
   pub_target_->publish(msg);
 
   std_msgs::msg::Float64 gmsg;

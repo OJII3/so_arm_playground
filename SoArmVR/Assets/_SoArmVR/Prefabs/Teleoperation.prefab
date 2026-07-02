@@ -239,6 +239,18 @@ MonoBehaviour:
       m_SingletonActionBindings: []
       m_Flags: 0
     m_Reference: {fileID: -6867303212546052101, guid: 2ce0dfd68d5744e8b84cfa36618c0e25, type: 3}
+  _ikActiveAction:
+    m_UseReference: 1
+    m_Action:
+      m_Name: 
+      m_Type: 0
+      m_ExpectedControlType: 
+      m_Id: 229552c1-27cf-4db4-bebe-308f4244dfa5
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings: []
+      m_Flags: 0
+    m_Reference: {fileID: -7194512972902737872, guid: 2ce0dfd68d5744e8b84cfa36618c0e25, type: 3}
 --- !u!1001 &2177573524899313375
 PrefabInstance:
   m_ObjectHideFlags: 0

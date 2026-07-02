@@ -34,6 +34,10 @@ namespace SoArmVR.Teleoperation
         [SerializeField, Tooltip("リセット発火（右コントローラ A ボタン押下の瞬間に 1 回）")]
         InputActionProperty _resetAction;
 
+        [Header("IK Mode")]
+        [SerializeField, Tooltip("IK 有効（右中指トリガー押下中）")]
+        InputActionProperty _ikActiveAction;
+
         ITeleoperationSink _sink;
         bool _active;
         int _sampleId;
@@ -52,6 +56,7 @@ namespace SoArmVR.Teleoperation
             _gripperAction.action?.Enable();
             _stickAction.action?.Enable();
             _resetAction.action?.Enable();
+            _ikActiveAction.action?.Enable();
         }
 
         void OnDisable()
@@ -60,6 +65,7 @@ namespace SoArmVR.Teleoperation
             _gripperAction.action?.Disable();
             _stickAction.action?.Disable();
             _resetAction.action?.Disable();
+            _ikActiveAction.action?.Disable();
             if (_active)
                 EndSession();
         }
@@ -113,6 +119,7 @@ namespace SoArmVR.Teleoperation
                 rotation = localRotation,
                 gripper = _gripperAction.action != null ? _gripperAction.action.ReadValue<float>() : 0f,
                 stick = _stickAction.action != null ? _stickAction.action.ReadValue<Vector2>() : Vector2.zero,
+                ikActive = _ikActiveAction.action != null ? _ikActiveAction.action.ReadValue<float>() > 0.5f : true,
             };
             _sink?.Push(in sample);
         }

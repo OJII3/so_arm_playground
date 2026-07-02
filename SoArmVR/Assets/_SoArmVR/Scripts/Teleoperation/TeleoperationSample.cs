@@ -28,5 +28,8 @@ namespace SoArmVR.Teleoperation
 
         /// <summary>右コントローラの primary2DAxis(右親指スティック)の生入力 (-1..1, x/y)。</summary>
         public Vector2 stick;
+
+        /// <summary>true = IK モード（位置追跡）, false = 手首モード（位置固定）。</summary>
+        public bool ikActive;
     }
 }

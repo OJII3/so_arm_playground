@@ -167,11 +167,13 @@ struct CallbacksFixture : public TeleopIKHelpersTest
     node_->last_msg_stamp_.reset();
   }
   bool call_on_target_with_input(
-      const geometry_msgs::msg::Pose & pose, float sx, float sy)
+      const geometry_msgs::msg::Pose & pose, float sx, float sy,
+      bool ik_active = true)
   {
     builtin_interfaces::msg::Time stamp;
     return node_->on_target_with_input(
         pose, sx, sy, stamp,
+        /*ik_active=*/ik_active,
         /*position_scale=*/1.0,
         /*stick_velocity_scale=*/1.0,
         /*stick_deadzone=*/0.0,
@@ -342,6 +344,7 @@ TEST_F(CallbacksFixture, StickDeadzoneBlocksSmallInputs)
         return p;
       }(),
       0.05f, -0.05f, stamp,
+      /*ik_active=*/true,
       /*position_scale=*/1.0,
       /*stick_velocity_scale=*/1.0,
       /*stick_deadzone=*/0.1,
@@ -368,6 +371,7 @@ TEST_F(CallbacksFixture, StickMaxDeltaPerMsgClampsIntegration)
         return p;
       }(),
       1.0f, 1.0f, stamp,
+      /*ik_active=*/true,
       /*position_scale=*/1.0,
       /*stick_velocity_scale=*/1.0,
       /*stick_deadzone=*/0.0,
@@ -409,6 +413,89 @@ TEST_F(TeleopIKHelpersTest, SolveIkKeepsJoint4Fixed)
   ASSERT_TRUE(result.has_value());
   // joint 4 はソルバ外なので seed 値が保持される.
   EXPECT_NEAR((*result)[idx_q_4], 0.3, 1e-9);
+}
+
+TEST_F(CallbacksFixture, IkInactiveFreezesPositionAndMovesWrist)
+{
+  node_->unity_anchor_set_ = false;
+
+  geometry_msgs::msg::Pose anchor_pose;
+  anchor_pose.position.x = 0.0;
+  anchor_pose.position.y = 0.0;
+  anchor_pose.position.z = 0.0;
+  EXPECT_FALSE(call_on_target_with_input(anchor_pose, 0.0f, 0.0f, true));
+  EXPECT_TRUE(node_->unity_anchor_set_);
+
+  const auto & model = node_->model_;
+  const auto jid_4 = model.getJointId("4");
+  const auto jid_5 = model.getJointId("5");
+  ASSERT_NE(jid_4, pinocchio::JointIndex(-1));
+  ASSERT_NE(jid_5, pinocchio::JointIndex(-1));
+  const auto idx_q_4 = model.joints[jid_4].idx_q();
+  const auto idx_q_5 = model.joints[jid_5].idx_q();
+  ASSERT_GE(idx_q_4, 0);
+  ASSERT_GE(idx_q_5, 0);
+
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d before_pos = node_->data_.oMf[node_->ee_frame_id_].translation();
+
+  geometry_msgs::msg::Pose moved_pose;
+  moved_pose.position.x = 0.1;
+  moved_pose.position.y = 0.0;
+  moved_pose.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(moved_pose, 0.5f, 0.3f, false));
+
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d after_pos = node_->data_.oMf[node_->ee_frame_id_].translation();
+  EXPECT_LT((after_pos - before_pos).norm(), 1e-4);
+
+  EXPECT_NEAR(node_->integrated_stick_.x(), 0.05, 1e-6);
+  EXPECT_NEAR(node_->integrated_stick_.y(), 0.03, 1e-6);
+
+  EXPECT_NEAR(node_->q_solution_[idx_q_4], 0.0 + 0.03, 1e-6);
+  EXPECT_NEAR(node_->q_solution_[idx_q_5], 0.0 + 0.05, 1e-6);
+}
+
+TEST_F(CallbacksFixture, IkModeReentryPreservesMovedEePosition)
+{
+  // Set arm_init_pos_ and anchor so that the first IK targets match neutral EE (reachable).
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d neutral_ee = node_->data_.oMf[node_->ee_frame_id_].translation();
+  node_->arm_init_pos_ = neutral_ee;
+  node_->unity_anchor_pos_.setZero();
+
+  // 1st: IK mode at ros_pos = (0,0,0)
+  // delta = 0 - 0 = 0, target = neutral_ee → IK succeeds from neutral
+  geometry_msgs::msg::Pose pose1;
+  pose1.position.x = 0.0; pose1.position.y = 0.0; pose1.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(pose1, 0.0f, 0.0f, true));
+
+  // 2nd: move controller to (0.05, 0, 0) → target = neutral_ee + (0.05, 0, 0)
+  geometry_msgs::msg::Pose pose2;
+  pose2.position.x = 0.05; pose2.position.y = 0.0; pose2.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(pose2, 0.0f, 0.0f, true));
+
+  // Capture EE position after IK mode movement
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d ee_after_ik = node_->data_.oMf[node_->ee_frame_id_].translation();
+
+  // 3rd: enter wrist mode, controller drifts to (0.1, 0, 0) - position ignored
+  geometry_msgs::msg::Pose pose3;
+  pose3.position.x = 0.1; pose3.position.y = 0.0; pose3.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(pose3, 0.0f, 0.0f, false));
+
+  // 4th: re-enter IK mode at drifted controller position (0.1, 0, 0)
+  // EE should stay at ee_after_ik, NOT jump back to session start
+  EXPECT_TRUE(call_on_target_with_input(pose3, 0.0f, 0.0f, true));
+
+  // Verify arm_init_pos_ was updated to the EE position at re-entry
+  EXPECT_LT((node_->arm_init_pos_ - ee_after_ik).norm(), 1e-4);
+  // Verify unity_anchor_pos_ is reset to current ros_pos
+  EXPECT_NEAR(node_->unity_anchor_pos_.x(), 0.1, 1e-9);
 }
 
 TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForWristJoints)

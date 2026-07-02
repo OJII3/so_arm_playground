@@ -63,6 +63,7 @@ class TeleopIKNode : public rclcpp::Node
       const geometry_msgs::msg::Pose & pose,
       float stick_x, float stick_y,
       const builtin_interfaces::msg::Time & stamp,
+      bool ik_active,
       double position_scale,
       double stick_velocity_scale,
       double stick_deadzone,
@@ -96,6 +97,7 @@ class TeleopIKNode : public rclcpp::Node
 
   // セッション状態 (active 中のみ有効).
   bool active_ = false;
+  bool prev_ik_active_ = true;  // tracks previous call's ik_active for transition detection
   Eigen::Vector3d arm_init_pos_ = Eigen::Vector3d::Zero();
   Eigen::Vector3d unity_anchor_pos_ = Eigen::Vector3d::Zero();
   bool unity_anchor_set_ = false;
