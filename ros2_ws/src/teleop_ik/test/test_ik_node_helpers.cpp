@@ -458,27 +458,44 @@ TEST_F(CallbacksFixture, IkInactiveFreezesPositionAndMovesWrist)
   EXPECT_NEAR(node_->q_solution_[idx_q_5], 0.0 + 0.05, 1e-6);
 }
 
-TEST_F(CallbacksFixture, IkModeReentryResetsAnchorToPreventJump)
+TEST_F(CallbacksFixture, IkModeReentryPreservesMovedEePosition)
 {
-  // 1st: anchor at origin (ik_active=true)
+  // Set arm_init_pos_ and anchor so that the first IK targets match neutral EE (reachable).
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d neutral_ee = node_->data_.oMf[node_->ee_frame_id_].translation();
+  node_->arm_init_pos_ = neutral_ee;
+  node_->unity_anchor_pos_.setZero();
+
+  // 1st: IK mode at ros_pos = (0,0,0)
+  // delta = 0 - 0 = 0, target = neutral_ee → IK succeeds from neutral
   geometry_msgs::msg::Pose pose1;
   pose1.position.x = 0.0; pose1.position.y = 0.0; pose1.position.z = 0.0;
-  EXPECT_FALSE(call_on_target_with_input(pose1, 0.0f, 0.0f, true));
+  EXPECT_TRUE(call_on_target_with_input(pose1, 0.0f, 0.0f, true));
 
-  // 2nd: enter wrist mode, drift controller to (0, -0.1, 0) - position ignored in wrist mode
+  // 2nd: move controller to (0.05, 0, 0) → target = neutral_ee + (0.05, 0, 0)
   geometry_msgs::msg::Pose pose2;
-  pose2.position.x = 0.0; pose2.position.y = -0.1; pose2.position.z = 0.0;
-  EXPECT_TRUE(call_on_target_with_input(pose2, 0.0f, 0.0f, false));
+  pose2.position.x = 0.05; pose2.position.y = 0.0; pose2.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(pose2, 0.0f, 0.0f, true));
 
-  // 3rd: return to IK mode at same drifted position (0, -0.1, 0)
-  // The anchor reset should absorb the drift: unity_anchor_pos_ = (0, -0.1, 0)
-  // so delta = (0) and target = arm_init (no jump).
-  call_on_target_with_input(pose2, 0.0f, 0.0f, true);
+  // Capture EE position after IK mode movement
+  pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
+  pinocchio::updateFramePlacements(node_->model_, node_->data_);
+  const Eigen::Vector3d ee_after_ik = node_->data_.oMf[node_->ee_frame_id_].translation();
 
-  // Verify unity_anchor_pos_ was reset to current ros_pos (0, -0.1, 0)
-  EXPECT_NEAR(node_->unity_anchor_pos_.x(), 0.0, 1e-9);
-  EXPECT_NEAR(node_->unity_anchor_pos_.y(), -0.1, 1e-9);
-  EXPECT_NEAR(node_->unity_anchor_pos_.z(), 0.0, 1e-9);
+  // 3rd: enter wrist mode, controller drifts to (0.1, 0, 0) - position ignored
+  geometry_msgs::msg::Pose pose3;
+  pose3.position.x = 0.1; pose3.position.y = 0.0; pose3.position.z = 0.0;
+  EXPECT_TRUE(call_on_target_with_input(pose3, 0.0f, 0.0f, false));
+
+  // 4th: re-enter IK mode at drifted controller position (0.1, 0, 0)
+  // EE should stay at ee_after_ik, NOT jump back to session start
+  EXPECT_TRUE(call_on_target_with_input(pose3, 0.0f, 0.0f, true));
+
+  // Verify arm_init_pos_ was updated to the EE position at re-entry
+  EXPECT_LT((node_->arm_init_pos_ - ee_after_ik).norm(), 1e-4);
+  // Verify unity_anchor_pos_ is reset to current ros_pos
+  EXPECT_NEAR(node_->unity_anchor_pos_.x(), 0.1, 1e-9);
 }
 
 TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForWristJoints)

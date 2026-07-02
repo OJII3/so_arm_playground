@@ -421,9 +421,13 @@ bool TeleopIKNode::on_target_with_input(
   integrated_stick_.x() += vx_c * stick_velocity_scale * delta_t;
   integrated_stick_.y() += vy_c * stick_velocity_scale * delta_t;
 
-  // IK mode への再突入時、wrist mode 中に蓄積した VR controller drift を除去するため
-  // anchor を現在の ros_pos にリセットする。これにより復帰時の位置ジャンプを防ぐ。
+  // IK mode への再突入時、wrist mode 中に蓄積した VR controller drift を除去し、
+  // 現在 EE 位置を新しいセッション基準点とする。これにより復帰時の位置ジャンプを防ぐ。
   if (ik_active && !prev_ik_active_ && unity_anchor_set_) {
+    // 現在 EE 位置を新しい arm_init_pos_ として基準化
+    pinocchio::forwardKinematics(model_, data_, q_solution_);
+    pinocchio::updateFramePlacements(model_, data_);
+    arm_init_pos_ = data_.oMf[ee_frame_id_].translation();
     unity_anchor_pos_ = ros_pos;
   }
   prev_ik_active_ = ik_active;
