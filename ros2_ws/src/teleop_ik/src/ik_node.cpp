@@ -442,15 +442,28 @@ bool TeleopIKNode::on_target_with_input(
     }
     q_solution_ = *result;
   } else {
-    // --- Wrist mode: position frozen, solve IK to stay at current EE position ---
+    // --- Wrist mode: set target wrist angles, then solve IK to stay at current EE position ---
     pinocchio::forwardKinematics(model_, data_, q_solution_);
     pinocchio::updateFramePlacements(model_, data_);
     const Eigen::Vector3d current_ee = data_.oMf[ee_frame_id_].translation();
 
-    Eigen::VectorXd q_seed = q_solution_;
-    q_seed = clamp_joints(q_seed);
+    Eigen::VectorXd q_pred = q_solution_;
+    q_pred = clamp_joints(q_pred);
+    for (size_t i = 0; i < 2; ++i) {
+      if (wrist_joint_ids_[i] != static_cast<pinocchio::JointIndex>(-1)) {
+        const auto idx_q = model_.joints[wrist_joint_ids_[i]].idx_q();
+        const double raw = (i == 0)
+          ? wrist_init_pos_.y() + integrated_stick_.y()
+          : wrist_init_pos_.x() + integrated_stick_.x();
+        q_pred[idx_q] = std::clamp(
+            raw,
+            model_.lowerPositionLimit[idx_q],
+            model_.upperPositionLimit[idx_q]);
+      }
+    }
 
-    auto result = solve_ik(current_ee, q_seed, ik_damping, ik_max_iterations, ik_tolerance);
+    // solve_ik modifies only joints 1-3 (position_joint_ids_), preserving wrist joints
+    auto result = solve_ik(current_ee, q_pred, ik_damping, ik_max_iterations, ik_tolerance);
     if (!result.has_value()) {
       return false;
     }
@@ -458,10 +471,6 @@ bool TeleopIKNode::on_target_with_input(
   }
 
   // --- FK injection for wrist joints (always) ---
-  // NOTE: IK 解決後に wrist joint (4, 5) を FK 注入で上書きするため、
-  // wrist joint が gripper frame 位置に影響するモデルでは、最終的な EE 位置が
-  // IK ターゲットからわずかにずれる (テストでは < 5e-3 を許容)。
-  // 厳密な位置固定が必要な場合は位置+向き IK への拡張が必要。
   for (size_t i = 0; i < 2; ++i) {
     if (wrist_joint_ids_[i] != static_cast<pinocchio::JointIndex>(-1)) {
       const auto idx_q = model_.joints[wrist_joint_ids_[i]].idx_q();

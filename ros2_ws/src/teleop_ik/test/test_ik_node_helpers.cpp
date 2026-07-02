@@ -449,7 +449,7 @@ TEST_F(CallbacksFixture, IkInactiveFreezesPositionAndMovesWrist)
   pinocchio::forwardKinematics(node_->model_, node_->data_, node_->q_solution_);
   pinocchio::updateFramePlacements(node_->model_, node_->data_);
   const Eigen::Vector3d after_pos = node_->data_.oMf[node_->ee_frame_id_].translation();
-  EXPECT_LT((after_pos - before_pos).norm(), 5e-3);
+  EXPECT_LT((after_pos - before_pos).norm(), 1e-4);
 
   EXPECT_NEAR(node_->integrated_stick_.x(), 0.05, 1e-6);
   EXPECT_NEAR(node_->integrated_stick_.y(), 0.03, 1e-6);
