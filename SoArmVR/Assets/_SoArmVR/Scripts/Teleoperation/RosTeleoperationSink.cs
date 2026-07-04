@@ -1,5 +1,5 @@
 using UnityEngine;
-using ROSettaDDS.Dds;
+using ROSettaDDS.Rcl;
 using ROSettaDDS.Dds.QoS;
 using ROSettaDDS.Msgs.Geometry;
 using ROSettaDDS.Msgs.Std;
@@ -15,10 +15,12 @@ namespace SoArmVR.Teleoperation
 {
     /// <summary>
     /// テレオペレーションデータを ROSettaDDS (DDS) 経由で ROS 2 トピックに publish する Sink。
+    /// rcl 的な <see cref="Context"/> + <see cref="Node"/> 2 層 API を使う。
     /// </summary>
     public class RosTeleoperationSink : MonoBehaviour, ITeleoperationSink
     {
-        DomainParticipant _participant;
+        Context _context;
+        Node _node;
         Publisher<RosTargetPoseWithInput> _targetPub;
         Publisher<Float64Message> _gripperPub;
         Publisher<BoolMessage> _activePub;
@@ -31,36 +33,37 @@ namespace SoArmVR.Teleoperation
 
         void InitParticipant()
         {
-            if (_participant != null) return;
+            if (_context != null) return;
 
             // LocalUnicastAddress 未指定 (既定) で ROSettaDDS が全 NIC を自動列挙して広告する。
-            var options = new DomainParticipantOptions
+            _context = new Context(new ContextOptions
             {
                 DomainId = 0,
                 EntityName = "soarmvr",
-            };
-            _participant = new DomainParticipant(options);
-            _participant.Start();
+            });
+            _context.Start();
+
+            _node = new Node(_context, "soarmvr");
 
             // target は高頻度なので sensor-data 相当の BestEffort。
-            _targetPub = _participant.CreatePublisher<RosTargetPoseWithInput>(
+            _targetPub = _node.CreatePublisher<RosTargetPoseWithInput>(
                 "/teleop/target",
                 TargetPoseWithInputSerializer.Instance,
                 ReliabilityQos.BestEffort,
                 DurabilityQos.Volatile,
                 RosTargetPoseWithInput.DdsTypeName);
 
-            _gripperPub = _participant.CreatePublisher<Float64Message>(
+            _gripperPub = _node.CreatePublisher<Float64Message>(
                 "/teleop/gripper",
                 Float64MessageSerializer.Instance,
                 Float64Message.DdsTypeName);
 
-            _activePub = _participant.CreatePublisher<BoolMessage>(
+            _activePub = _node.CreatePublisher<BoolMessage>(
                 "/teleop/active",
                 BoolMessageSerializer.Instance,
                 BoolMessage.DdsTypeName);
 
-            _resetPub = _participant.CreatePublisher<ResetCommand>(
+            _resetPub = _node.CreatePublisher<ResetCommand>(
                 "/teleop/reset",
                 ResetCommandSerializer.Instance,
                 ReliabilityQos.Reliable,
@@ -93,13 +96,15 @@ namespace SoArmVR.Teleoperation
             _gripperPub?.Dispose();
             _activePub?.Dispose();
             _resetPub?.Dispose();
-            _participant?.Dispose();
+            _node?.Dispose();
+            _context?.Dispose();
 
             _targetPub = null;
             _gripperPub = null;
             _activePub = null;
             _resetPub = null;
-            _participant = null;
+            _node = null;
+            _context = null;
         }
 
         async void PublishTarget(TeleoperationSample sample)

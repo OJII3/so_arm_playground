@@ -9,7 +9,10 @@ pure C# RTPS/DDS により直接 pub/sub する。
 - 参照パッケージ: `com.ojii3.rosettadds` (UPM git 依存, `Packages/manifest.json`)
 - `std_msgs` / `builtin_interfaces` / `geometry_msgs` などの標準 msg は ROSettaDDS に同梱。
   当プロジェクトでは独自 msg を持たない。
-- LAN 上の ROS 2 とは `DomainParticipantOptions` 既定 (NIC 自動列挙) で直接 pub/sub する。
+- LAN 上の ROS 2 とは `ContextOptions` 既定 (NIC 自動列挙) で直接 pub/sub する。
+  ROSettaDDS の公開 API は ROS 2 の `rcl_context_t` / `rcl_node_t` に対応する
+  `Rcl.Context` + `Rcl.Node` の 2 層構造 (`SoArmVR/.../RosTeleoperationSink.cs`)。
+  旧 `DomainParticipant` API は upstream で `[Obsolete]` 化されている。
 
 ### publish するトピック
 
