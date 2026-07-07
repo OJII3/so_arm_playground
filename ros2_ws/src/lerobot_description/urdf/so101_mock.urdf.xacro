@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<robot name="so101" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- Base links/joints -->
+  <xacro:include filename="$(find lerobot_description)/urdf/so101_base.xacro" />
+
+  <!-- Use mock ros2_control (no Gazebo, no Feetech hardware) -->
+  <xacro:include filename="$(find lerobot_description)/urdf/so101_ros2_control_mock.xacro" />
+
+</robot>
