@@ -1,0 +1,13 @@
+{
+    "name": "SoArmVR.Kinematics",
+    "rootNamespace": "SoArmVR.Kinematics",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "noEngineReferences": false
+}
