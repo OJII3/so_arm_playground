@@ -123,6 +123,9 @@ ros2 launch lerobot_controller so101_leader_follower.launch.py
 # SoArmVR・フォロワー実機 (VR teleoperation)
 ros2 launch teleop_ik vr_teleop.launch.py usb_port:=/dev/ttyACM0
 
+# SoArmVR + RViz (実機/Gazebo なしで VR テレオペ動作確認)
+ros2 launch teleop_ik vr_teleop_rviz.launch.py
+
 # MoveIt 2
 ros2 launch lerobot_moveit so101_moveit.launch.py is_sim:=False
 
