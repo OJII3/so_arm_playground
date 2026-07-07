@@ -46,7 +46,8 @@
 - ROS 2 側に `vr_teleop_bridge.launch.py` を新設し, follower 実機/ros2_control
   + 必要ならリマップだけを立ち上げる.
 - 既存の `vr_teleop.launch.py` は当面残し, 新経路に切替え可能とする.
-- `ResetCommand`/`/teleop/reset` を削除する.
+- VR 入力から `/teleop/reset` への publish を外す. `teleop_ik::msg::ResetCommand`
+  と C++ 側 reset 経路の物理削除は別 spec とする (Step 4, §6).
 - 現行 README 類の A ボタン説明 (`Reset`) は A = 床設置 に書き換える.
 
 ## 2. 確定方針
@@ -54,20 +55,22 @@
 | 項目 | 決定 |
 | --- | --- |
 | URDF | 展開済み `so101.urdf` を `SoArmVR/Assets/_SoArmVR/Urdf/so101.urdf` に TextAsset として同梱. xacro 展開は SoArmVR 側で行わない. |
-| ロボットモデル | URDF から link/joint 階層を `UrdfModel` として読み込み, Unity GameObject ツリーへ transform を反映. mesh は当面プリミティブで OK (URDF mesh は将来段階). |
-| 設置 | A ボタン長押し中に右コントローラー ray を AR 平面に raycast し, 離した瞬間の hit pose を `base` のワールド Transform として確定. |
+| ロボットモデル | URDF から link/joint 階層を `UrdfModel` として読み込み, Unity GameObject ツリーへ transform を反映. mesh は URDF visual mesh を読まずに, 各 link を joint origin 間を結ぶ capsule/cube で可視化し, link 名ごとに固定色を割り当てる. URDF mesh 反映は将来段階. |
+| 設置 | A ボタン押下中に右コントローラー ray を AR 平面に raycast し, release 時に確定. 押下時間による分岐はしない. base position は hit pose.position, base up は `Vector3.up`, base forward は右コントローラー forward を床平面へ投影した方向とする. 投影が小さい (`sqrMagnitude < 1e-4`) 場合は `XR Origin` の forward へフォールバック. |
 | 基準フレーム | 設置後の `base` Transform からの相対で EE 目標と joint 4 pitch を扱う. 既存 `TeleoperationAnchor` (ヨー基準) は今回廃止. |
-| 操作 | グリップ押下中だけクラッチ式に EE 位置を追従. 押し始めの controller pose と設置後最初の EE pose を基準化し, 差分を EE 目標に反映. |
-| joint 4 | 右コントローラーの forward 方向を `base` 基準の pitch に変換して目標値とする. |
-| joint 5 | 右スティック左右で速度積分 (deadzone 付き) し, 関節角度として注入. |
+| 操作 | グリップ押下中だけクラッチ式に EE 位置を追従. 押し始めの controller pose と「grip 押下開始時の EE pose」を基準化し, 差分を EE 目標に反映. delta は world 空間で取り, `baseTransform.InverseTransformVector` で base 相対へ変換してから EE 目標に加算する. EE rotation は今回 IK 対象外とし, 保持する. |
+| joint 4 | 右コントローラーの forward 方向を `base` 基準の pitch に変換して目標値とする. yaw は j4 には入れない. |
+| joint 5 | 右スティック左右で速度積分 (deadzone 0.1 で再マップした x 値を `dt` 積分) し, 関節角度として注入. |
 | グリッパ | 右トリガー (0..1) を joint 6 angle にマップ. |
-| A ボタン | 設置専用. 短押し/長押し区別なし. 押下中ずっとプレビュー, 離した時点で確定. |
-| Reset | 完全削除. `/teleop/reset` 経路と `teleop_ik::msg::ResetCommand` を削除. |
-| IK | 数値 IK を C# で実装. 対象は joint 1..3. ターゲットは EE 位置. seed は前回の成功解. 収束失敗時は最終成功解を維持し, ゴーストを「IK 失敗」表現 (色変更) にする. |
-| ROS 2 出力 | `trajectory_msgs/JointTrajectory` 2 本: `/follower/arm_controller/joint_trajectory`, `/follower/gripper_controller/joint_trajectory`. Unity 側座標は ROS 側へ変換しない (URDF 同梱のため ROS 側と一致). |
+| A ボタン | 設置専用. 押下中ずっとプレビュー, release で確定. 押下時間による分岐はしない. |
+| Reset | 本 spec では VR 入力からの `/teleop/reset` publish を外し無効化する. `teleop_ik::msg::ResetCommand` および C++ 側 reset 経路の物理削除は別 spec (Step 4, §6). |
+| IK | 数値 IK を C# で実装. 対象は joint 1..3. ターゲットは EE 位置. seed は前回の成功解. 収束失敗時は最終成功解を維持し, ゴーストの材質を「IK 失敗」表現 (半透明 red) にして publish をスキップする. IK 成功時は半透明 cyan. |
+| 座標系 | URDF 内部計算は ROS 座標系 (右手系, Z-up) で保持する. Unity 表示は「URDF 座標系の親 Transform」で全 GameObject を包んで `ros → unity` の固定変換を適用する. ROS publish 値は ROS 座標系のまま (URDF と同梱のため ROS 側と一致) 送出する. |
+| ROS 2 出力 | `trajectory_msgs/JointTrajectory` 2 本: `/follower/arm_controller/joint_trajectory`, `/follower/gripper_controller/joint_trajectory`. 値は URDF 同梱の ROS 座標系. |
+| msg 生成 | `trajectory_msgs/msg/JointTrajectory`, `trajectory_msgs/msg/JointTrajectoryPoint`, `builtin_interfaces/msg/Duration` の C# msg を `rosettadds-genmsg` で生成し `Assets/_SoArmVR/Scripts/GeneratedMsgs` 配下に追加する. |
 | QoS | arm/gripper trajectory は BestEffort / Volatile を避け, Reliable / Volatile とする (現 `teleop_ik_node` と同じ reliable publisher). |
 | publish 周期 | `Update()` のたびに publish. 失敗フレームは publish しない. |
-| 既存 launch | `vr_teleop.launch.py` は当面温存. 新経路は `vr_teleop_bridge.launch.py` として独立. README には両方を記載し, 用途を明示. |
+| 既存 launch | `vr_teleop.launch.py` は当面温存. 新経路は `vr_teleop_bridge.launch.py` として独立. `vr_teleop_bridge.launch.py` は follower 実機/ros2_control だけを起動し `teleop_ik_node` は起動しない. 引数 `use_mock` で RViz mock ハードウェア (`vr_teleop_rviz.launch.py` 相当) へ切替可能. README には両方を記載し, 用途を明示. |
 
 ## 3. アーキテクチャ
 
@@ -118,35 +121,41 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 
 - `UrdfModel` (新規): URDF XML をパースし, link/joint 階層, 静止 origin,
   joint axis, lower/upper limit を `UrdfLink[]` / `UrdfJoint[]` に保持.
-  Unity の Y-up, left-handed を前提として axis/rotation を直接読み込む.
+  内部表現は ROS 座標系 (右手系, Z-up) のまま. Unity 表示用の `RosToUnity`
+  親 Transform とは別レイヤーで扱う.
 - `UrdfKinematics` (新規): `UrdfModel` と関節角から
-  `Vector3 GetJointOrigin(int linkIndex)` と
-  `Matrix4x4 GetJointTransform(int linkIndex, double[] q)` を計算.
-  joint axis と rotation を順に適用する forward kinematics.
+  `Matrix4x4 GetJointTransform(string linkName, double[] q)` を計算.
+  ROS 座標系で保持し, 表示時に `RosToUnity` 親で包む.
 - `UrdfIKSolver` (新規): joint 1..3 を変数として EE 位置ターゲットを解く
   damped least squares. q_seed を受けて反復, URDF の lower/upper で clamp.
+  damping 初期値 `0.01` (既存 ROS 側 `1e-6` とは異なる; 数値安定性優先).
 - `ArmPlacementController` (新規): A ボタンの hold/release, AR 平面
-  raycast, base Transform 確定, 配置済みフラグ管理.
+  raycast, base Transform 確定, 配置済みフラグ管理. `ARRaycastManager`,
+  `ARPlaneManager` への参照を保持.
 - `VirtualSoArm` (新規): 配置済み base に対する関節目標と EE 目標を保持.
-  `Update()` で `UrdfKinematics` を回し, 子 GameObject の Transform を更新.
-  `UrdfIKSolver` を呼んで joint 1..3 を求め, 失敗を `bool ikSolved` で公開.
+  `Update()` で `UrdfKinematics` を回し, `RosToUnity` 配下の子 GameObject の
+  Transform を更新. `UrdfIKSolver` を呼んで joint 1..3 を求め, 失敗を
+  `bool ikSolved` で公開. 子 GameObject は `base`, `shoulder`, `upper_arm`,
+  `lower_arm`, `wrist`, `gripper`, `jaw` の 7 個.
 - `VrTrajectorySink` (新規, `RosTeleoperationSink` の置換): 関節角を
-  JointTrajectory メッセージに詰めて ROSettaDDS で publish.
+  `trajectory_msgs/JointTrajectory` メッセージに詰めて ROSettaDDS で
+  publish. `ResetCommand` publisher は削除.
 - `ArmTeleoperationController` (新規): 入力 (grip, trigger, stick, j4 pitch)
   を `VirtualSoArm` の目標へ反映. 既存 `TeleoperationSession` を置換.
 
 ### 3.3 モジュール分割 (ROS 2 側)
 
 - `ros2_ws/src/teleop_ik/launch/vr_teleop_bridge.launch.py` (新規):
-  `so101_follower_controller.launch.py` だけを取り込み,
-  `teleop_ik_node` は起動しない.
-- `ros2_ws/src/teleop_ik/msg/ResetCommand.msg` (削除)
-- `ros2_ws/src/teleop_ik/msg/TargetPoseWithInput.msg` (Unity 側で送らなくなる.
-  rosidl からは削除してよいが, 既存 C++ テストが依存している可能性に
-  注意. 段階的に外す).
-- `ros2_ws/src/teleop_ik/src/ik_node.cpp` の `on_reset` 関連 (削除)
-- `teleop_ik_node` 自体: 段階的に縮退. `vr_teleop_bridge.launch.py` からは
-  起動しない. テストは当面残置.
+  `so101_follower_controller.launch.py` (実機) または
+  `vr_teleop_rviz.launch.py` (mock, RViz) を取り込み, `teleop_ik_node` は
+  起動しない. launch 引数 `use_mock:=true/false` で切替. `arm_topic`,
+  `gripper_topic` で ROS topic 名を remap できる.
+- `ros2_ws/src/teleop_ik/msg/ResetCommand.msg`: 本 spec では削除しない
+  (Step 4). VR 側からの publish を切るのみ.
+- `ros2_ws/src/teleop_ik/msg/TargetPoseWithInput.msg`: 削除しない.
+  gamepad 経路と既存 C++ テストが依存.
+- `teleop_ik_node`: `vr_teleop_bridge.launch.py` からは起動しない.
+  既存 launch テストは温存.
 
 ### 3.4 既存コードへの影響
 
@@ -156,11 +165,11 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 | `Assets/_SoArmVR/Scripts/Teleoperation/TeleoperationSession.cs` | 廃止. `ArmTeleoperationController` に置換. |
 | `Assets/_SoArmVR/Scripts/Teleoperation/RosTeleoperationSink.cs` | `VrTrajectorySink` に置換. ResetCommand publisher を削除. |
 | `Assets/_SoArmVR/Scripts/Teleoperation/ITeleoperationSink.cs` | 廃止. 旧 Sink 抽象は SoArmVR 内に閉じないため. |
-| `Assets/_SoArmVR/Input/SoArmTeleoperation.inputactions` | Reset を削除. A は「PlaceArm」にリネーム. grip/trigger/stick は継続. |
+| `Assets/_SoArmVR/Input/SoArmTeleoperation.inputactions` | Reset を削除. A は「PlaceArm」にリネーム. grip/trigger/stick は継続. IkActive は削除 (常時 IK). |
 | `Assets/_SoArmVR/Prefabs/Anchor.prefab` | 廃止. |
-| `Assets/_SoArmVR/Prefabs/Teleoperation.prefab` | 新規スクリプトに付け替え. AR Session / XR Origin は継続. |
-| `Assets/_SoArmVR/Prefabs/VirtualSoArm.prefab` (新規) | ベース + 5 リンク + グリッパの GameObject ツリー. mesh は当面 Primitive. |
-| `ros2_ws/src/teleop_ik/...` | 段階的に縮退 (本 spec の範囲外, 別途 spec で). |
+| `Assets/_SoArmVR/Prefabs/Teleoperation.prefab` | 新規スクリプトに付け替え. AR Session / XR Origin / `ARRaycastManager` / `ARPlaneManager` を保持. 追加: `ArmPlacementController`, `ArmTeleoperationController`, `VirtualSoArm`, `VrTrajectorySink`. |
+| `Assets/_SoArmVR/Prefabs/VirtualSoArm.prefab` (新規) | `RosToUnity` 親 + `base`, `shoulder`, `upper_arm`, `lower_arm`, `wrist`, `gripper`, `jaw` の GameObject ツリー. 各 link は URDF joint origin 間を結ぶ capsule/cube. link 名ごとに固定色を割当. URDF visual mesh は読まない. |
+| `ros2_ws/src/teleop_ik/...` | 本 spec では縮退しない. `vr_teleop_bridge.launch.py` 追加のみ. |
 
 ## 4. 詳細設計
 
@@ -171,6 +180,10 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
     を AR 平面 (Plane alignment = Horizontal up) に対して raycast.
   - hit があれば `previewBase` を hit pose に合わせて可視化.
   - A 離した瞬間に, hit pose を `VirtualSoArm.Place(basePose)` に渡す.
+    `basePose.position` = hit pose.position,
+    `basePose.up` = `Vector3.up` (床平面の normal),
+    `basePose.forward` = `Vector3.ProjectOnPlane(rightController.forward, Vector3.up)`.
+    投影が `sqrMagnitude < 1e-4` のときは `XR Origin` の forward へフォールバック.
   - 既に配置済みの場合, 「再配置する」動線も許可 (1 度目と同じ挙動,
     IK 状態はリセット).
 - AR 平面が取得できないときは何もしない (プレビュー/設置もスキップ).
@@ -181,34 +194,32 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 - `ArmTeleoperationController`:
   - 配置済み (`VirtualSoArm.IsPlaced == true`) でないときは grip を無視.
   - grip 押下開始時:
-    - `controllerStartPose` = 現在の右コントローラー pose
-    - `eeStartPose` = 現在の EE pose (URDF FK から)
+    - `controllerStartPose` = 現在の右コントローラー pose (world)
+    - `eeStartLocal` = 「grip 押下開始時の」EE pose (URDF base 基準)
     - `clutchActive = true`
   - grip 押下中:
-    - `deltaPos = controller.position - controllerStartPose`
-    - `deltaRot = controller.rotation * Inverse(controllerStartPose.rotation)`
-    - `eeTargetPose.position = eeStartPose.position + deltaPos * positionScale`
-    - `eeTargetPose.rotation = eeStartPose.rotation * deltaRot` (任意)
+    - `deltaWorld = controller.position - controllerStartPosition`
+    - `deltaBase = baseTransform.InverseTransformVector(deltaWorld)`
+    - `eeTargetLocal = eeStartLocal + deltaBase * positionScale`
+    - EE rotation は今回 IK 対象外のため更新しない (保持).
   - grip 離した: `clutchActive = false`. 最終 EE pose は固定.
 
 ### 4.3 joint 4 (controller pitch → base 基準 pitch)
 
-- 配置後の `base` forward (base.rotation * Vector3.forward) を基準.
-- `controllerForward = controller.rotation * Vector3.forward`
-- `baseForwardProjected = Vector3.ProjectOnPlane(baseForward, Vector3.up)` (正規化)
-- `controllerForwardProjected = Vector3.ProjectOnPlane(controllerForward, Vector3.up)` (正規化)
-- 両者の角度差 `theta` (水平面上での yaw) と, `controllerForward` の
-  上下成分 `dy` (= `Vector3.Dot(controllerForward, Vector3.up)`) から
-  pitch を計算:
-  - `pitch = Mathf.Asin(Mathf.Clamp(dy, -1f, 1f))`
-  - `j4 = pitch` とし, lower/upper で clamp.
-- ヨー (`theta`) は `j4` には入れない (要望: pitch のみ).
+- `controllerForward = rightController.rotation * Vector3.forward`
+- `dy = Vector3.Dot(controllerForward, baseTransform.up)` (up との射影)
+- `pitch = Mathf.Asin(Mathf.Clamp(dy, -1f, 1f))`
+- `j4 = pitch` とし, URDF の lower/upper で clamp.
+- base に対する yaw は使用しない (要望: pitch のみ).
 
 ### 4.4 joint 5 (stick 積分)
 
-- `j5 += stick.x * j5RadPerSec * dt`
+- `x = stick.x`
+- `deadzone = 0.1`. `abs(x) <= deadzone` のとき 0.
+- それ以外は `x' = sign(x) * (abs(x) - deadzone) / (1 - deadzone)`.
+- `j5 += x' * j5RadPerSec * dt` (`j5RadPerSec` の default は
+  既存 ROS 側 `stick_velocity_scale=1.5` rad/sec と一致).
 - lower/upper で clamp.
-- deadzone 半径は `0.1` とし, それ以下は 0 として扱う.
 
 ### 4.5 グリッパ (joint 6)
 
@@ -219,9 +230,10 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 ### 4.6 IK (joint 1..3, EE 位置)
 
 - `UrdfIKSolver.Solve(eeTargetLocal, qSeed, out qOut)`:
-  - 反復: `q = q + J^T (J J^T + λ I)^{-1} (eeTarget - eeCurrent)`
+  - 反復: `dq = J^T (J J^T + λ I)^{-1} (eeTarget - eeCurrent)`
   - J は 3x3 (URDF の joint 1..3 に関する位置 Jacobian を差分で近似).
-  - `λ = 0.01` (damping). 初期実装は固定.
+  - `λ = 0.01` (damping). 初期実装は固定 (既存 ROS 側 `1e-6` とは別
+    値; 数値安定性優先).
   - `maxIter = 100`, `tol = 1e-4` (現 ROS 側と一致).
   - 各反復で `UrdfKinematics` を呼び, lower/upper で clamp.
   - 収束したら `qOut` を返し `true`. 失敗なら `false`.
@@ -235,11 +247,12 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
   2. joint 4 = `j4` (controller pitch)
   3. joint 5 = `j5` (stick 積分)
   4. joint 6 = `j6` (trigger)
-  5. `UrdfKinematics.GetJointTransform(i, q)` を全 link で計算し,
-     対応する GameObject の localPosition/localRotation を更新.
-  6. IK 失敗時はゴーストの材質を「赤」または半透明へ切替え.
-     publish は行わない (前フレームの joint 角で発行した最後の
-     JointTrajectory を 1 周期間スキップする).
+  5. `UrdfKinematics.GetJointTransform(linkName, q)` を全 link で計算し,
+     `RosToUnity` 配下の子 GameObject の localPosition/localRotation を
+     更新.
+  6. IK 成功時は全 link の material を半透明 cyan,
+     失敗時は半透明 red に切替える. 失敗フレームは publish せず,
+     次フレームで seed として使う `qSolution_` を更新しない.
 
 ### 4.8 ROS 2 出力 (VrTrajectorySink)
 
@@ -251,9 +264,14 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
   (default 0.1 s). 単点軌道.
 - 入力: `VirtualSoArm.GetLastSolvedJoints()`, `IsPlaced`, `IsIkSolved` (last frame).
   - 未配置 or IK 失敗 → publish しない.
-- `VrTrajectorySink` は `RosTeleoperationSink` の実装を
-  `JointTrajectory` ベースに書換えたもの. `ResetCommand` publisher は
-  この段階で削除する (型/msg も削除予定).
+- publish 周期: 初期実装は Unity `Update()` 同期. 将来 `minPublishIntervalSec`
+  などで throttling する余地は spec 上残す (本 spec では実装しない).
+- C# msg 生成: `trajectory_msgs/msg/JointTrajectory`,
+  `trajectory_msgs/msg/JointTrajectoryPoint`, `builtin_interfaces/msg/Duration`
+  を `rosettadds-genmsg` で生成し `Assets/_SoArmVR/Scripts/GeneratedMsgs/`
+  配下に追加する.
+- `ResetCommand` publisher は VR 経路から外す. `teleop_ik::msg::ResetCommand`
+  型/msg 自体の削除は Step 4 (別 spec).
 
 ### 4.9 入力アクション
 
@@ -268,12 +286,13 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 
 ## 5. 検証
 
-- ビルド: Unity 側で C# エラー / 警告がないこと.
-- 静的: `SoArmVR/Assets/_SoArmVR/Scripts/**/*.cs` に対する
-  `csc -warnaserror` 相当のチェック (CI は無いのでスクリプト or
-  `uloop build` で担保).
-- 動作: RViz mock launch (`vr_teleop_rviz.launch.py`) と組み合わせ,
-  A で床に置いたバーチャル SO-101 の姿勢が TF / RViz に反映されること.
+- ビルド: Unity Editor で compile error 0 件を確認.
+  検証は `uloop build SoArmVR` を使う. 利用できない環境では
+  Unity Editor の compile error 0 件を人の目で確認する.
+- 動作: `vr_teleop_bridge.launch.py use_mock:=true` と組み合わせ,
+  Unity 内ゴーストが A 設置後の配置で表示されること. RViz mock の
+  SO-101 は Unity から publish された joint 1..6 に追従すること
+  (AR 床設置 pose は TF には反映しない. base は固定で joint のみ反映).
 - 動作: グリップで EE を動かし, 実機/モックで joint 1..3 が
   追従すること. joint 4/5 は VR 側操作で動くこと.
 - 既存 ROS 側テスト (`teleop_ik` の gtest / launch テスト) は
@@ -281,19 +300,28 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 
 ## 6. 段階移行
 
-- ステップ 1: SoArmVR 側に `VirtualSoArm` + `UrdfModel` + `UrdfKinematics` を
-  入れ, 配置とゴースト表示だけ有効化. ROS 出力は既存 `RosTeleoperationSink`
-  のまま. (visualization-only フェーズ)
-- ステップ 2: SoArmVR 側で IK を解き, `VrTrajectorySink` を追加.
-  `vr_teleop_bridge.launch.py` を新設し, SoArmVR の出力を
-  `controller_manager` へ直結.
-- ステップ 3: 旧 `RosTeleoperationSink` / `teleop_ik_node` の IK 経路を
-  切る. `vr_teleop.launch.py` は `vr_teleop_bridge.launch.py` への
-  リダイレクトに縮退.
-- ステップ 4: `teleop_ik::msg::ResetCommand` / `/teleop/reset` を削除.
-  `teleop_ik_node` 自体を削除 (ゲームパッドは別ノード).
+- ステップ 1: SoArmVR 側に `UrdfModel` + `UrdfKinematics` + `VirtualSoArm`
+  プレファブ + `ArmPlacementController` を入れ, 旧 `TeleoperationSession`
+  を一時残置しつつ A 設置とゴースト表示をデバッグ UI で確認.
+  ROS 出力は既存 `RosTeleoperationSink` のまま (Step 1 中は Reset publish も
+  維持). (visualization-only フェーズ)
+- ステップ 2: 入力アクションを A=PlaceArm / grip=clutch / trigger→j6 /
+  stick.x→j5 に切替. Reset action と `RosTeleoperationSink` の
+  ResetCommand publisher を削除. (legacy 縮退フェーズ A)
+- ステップ 3: `UrdfIKSolver` + `VrTrajectorySink` + 必要 msg 生成を追加し,
+  `vr_teleop_bridge.launch.py` を新設. SoArmVR から
+  `/follower/arm_controller/joint_trajectory` を直接 publish.
+  (`vr_teleop_bridge.launch.py use_mock:=true/false` で実機/mock 切替).
+  旧 `RosTeleoperationSink` は Step 3 中も残し, 動作切替は ROS launch で
+  選択する形にする.
+- ステップ 4: 旧 `RosTeleoperationSink` と `vr_teleop.launch.py` の
+  redirect を切る. README/launch の利用ガイドを新経路に揃える.
+- ステップ 5: `teleop_ik::msg::ResetCommand` / `/teleop/reset` を削除し,
+  VR 経路から `teleop_ik_node` への依存を外す. `teleop_ik_node` 自体は
+  gamepad 経路で残し, その gamepad 経路を `JointTrajectory` 直出しに
+  移行する別 spec で `teleop_ik_node` を削除する.
 
-本 spec はステップ 1〜3 を範囲とする. ステップ 4 は別 spec.
+本 spec はステップ 1〜4 を範囲とする. ステップ 5 は別 spec.
 
 ## 7. 関連
 
