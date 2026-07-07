@@ -154,7 +154,7 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
   どちらも `teleop_ik_node` は起動しない. launch 引数 `arm_topic`,
   `gripper_topic` で ROS topic 名を remap できる.
 - `ros2_ws/src/teleop_ik/msg/ResetCommand.msg`: 本 spec では削除しない
-  (Step 4). VR 側からの publish を切るのみ.
+  (Step 5). VR 側からの publish を切るのみ.
 - `ros2_ws/src/teleop_ik/msg/TargetPoseWithInput.msg`: 削除しない.
   gamepad 経路と既存 C++ テストが依存.
 - `teleop_ik_node`: `vr_teleop_bridge.launch.py` からは起動しない.
@@ -202,8 +202,11 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
     - `clutchActive = true`
   - grip 押下中:
     - `deltaWorld = controller.position - controllerStartPosition`
-    - `deltaBase = baseTransform.InverseTransformVector(deltaWorld)`
-    - `eeTargetLocal = eeStartLocal + deltaBase * positionScale`
+    - `deltaBaseUnity = baseTransform.InverseTransformVector(deltaWorld)`
+    - `deltaBaseRos = rosToUnity.InverseTransformVector(deltaBaseUnity)`
+      (`rosToUnity` は `RosToUnity` 親 Transform. これにより Unity
+      base-local の delta を URDF 内部の ROS base-local ベクトルへ変換)
+    - `eeTargetLocalRos = eeStartLocalRos + deltaBaseRos * positionScale`
     - EE rotation は今回 IK 対象外のため更新しない (保持).
   - grip 離した: `clutchActive = false`. 最終 EE pose は固定.
 
@@ -212,7 +215,10 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 - `controllerForward = rightController.rotation * Vector3.forward`
 - `dy = Vector3.Dot(controllerForward, baseTransform.up)` (up との射影)
 - `pitch = Mathf.Asin(Mathf.Clamp(dy, -1f, 1f))`
-- `j4 = pitch` とし, URDF の lower/upper で clamp.
+- `j4 = -pitch` とし, URDF の lower/upper で clamp.
+  URDF joint 4 の axis は Z 軸回転で正方向が「EE を上に倒す」向きのため,
+  コントローラ forward の上向き pitch を負符号で URDF 側へ渡す.
+  初期実装で実機 / RViz mock と符号が逆転する場合は本仕様を修正する.
 - base に対する yaw は使用しない (要望: pitch のみ).
 
 ### 4.4 joint 5 (stick 積分)
@@ -242,6 +248,8 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
   - 収束したら `qOut` を返し `true`. 失敗なら `false`.
 - seed: 前回成功解 `qSolution_`. 未配置時/初回は URDF 読み込み時の
   neutral configuration を使う.
+- 呼び出し側 (`VirtualSoArm.Update()`) は成功時のみ `qSolution_` を
+  今回の `qSolved1_3` で更新する. 失敗時は `qSolution_` を更新しない.
 
 ### 4.7 FK とゴースト更新
 
@@ -263,13 +271,16 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 - topic:
   - `/follower/arm_controller/joint_trajectory` (joint names: `1`, `2`, `3`, `4`, `5`)
   - `/follower/gripper_controller/joint_trajectory` (joint names: `6`)
-- QoS: Reliable / Volatile. 実装時は ROSettaDDS の `ReliabilityQos.Reliable,
-  DurabilityQos.Volatile` を指定することを実装計画にチェックリストとして残す
-  (既存 `RosTeleoperationSink` で ResetCommand に使った指定と一致).
+- QoS: Reliable / Volatile. 実装は ROSettaDDS の `ReliabilityQos.Reliable,
+  DurabilityQos.Volatile` を指定する (既存 `RosTeleoperationSink` の
+  ResetCommand publisher と同じ指定).
 - payload: `JointTrajectoryPoint` 1 点, `positions` のみ設定
   (`velocities` / `accelerations` / `effort` は空配列), `time_from_start`
   = `trajectory_dt` (default 0.1 s). 単点軌道. `header.stamp` は Unity
   の `DateTimeOffset.UtcNow` を `builtin_interfaces/Time` に変換して詰める.
+  時刻は wall-clock UTC であり `/use_sim_time` とは同期しない. controller
+  (`joint_trajectory_controller`) は stamp を必須視しない想定のため, 同期
+  しない前提でよい.
 - 入力: `VirtualSoArm.GetLastSolvedJoints()`, `IsPlaced`, `IsIkSolved` (last frame).
   - 未配置 or IK 失敗 → publish しない.
 - publish 周期: 初期実装は Unity `Update()` 同期. 将来 `minPublishIntervalSec`
@@ -279,7 +290,7 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
   を `rosettadds-genmsg` で生成し `Assets/_SoArmVR/Scripts/GeneratedMsgs/`
   配下に追加する.
 - `ResetCommand` publisher は VR 経路から外す. `teleop_ik::msg::ResetCommand`
-  型/msg 自体の削除は Step 4 (別 spec).
+  型/msg 自体の削除は Step 5 (別 spec).
 
 ### 4.9 入力アクション
 
@@ -316,9 +327,13 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
 
 - ステップ 2: 入力アクションを A=PlaceArm / grip=clutch / trigger→j6 /
   stick.x→j5 に切替. Reset action と `RosTeleoperationSink` の
-  ResetCommand publisher を削除. 旧 `TeleoperationSession` は Step 3 の
-  `VrTrajectorySink` 実装が揃うまで残置し, Unity 内で旧 sink と新入力
-  の切替フラグ (`useLegacyVrSink`) を持たせる. (legacy 縮退フェーズ A)
+  ResetCommand publisher はこのステップで削除する. 旧
+  `TeleoperationSession` と `RosTeleoperationSink` の
+  `TargetPoseWithInput` publish 経路のみを `useLegacyVrSink=true` で
+  残置し, 新入力と旧 sink の両方が Step 3 完了まで動く形にする.
+  `useLegacyVrSink=false` のときは旧 `TeleoperationSession` を
+  ディスパッチしない (新入力は無視). フラグのデフォルトは `true`
+  (Step 4 で削除するまで legacy 側を既定にしない). (legacy 縮退フェーズ A)
 
 - ステップ 3: `UrdfIKSolver` + `VrTrajectorySink` + 必要 msg 生成
   (`trajectory_msgs/msg/JointTrajectory`, `JointTrajectoryPoint`,
