@@ -33,18 +33,9 @@
                     "initialStateCheck": true
                 },
                 {
-                    "name": "Reset",
+                    "name": "PlaceArm",
                     "type": "Button",
                     "id": "f3f410d0-c5ea-445e-a170-7540abfca6e8",
-                    "expectedControlType": "Button",
-                    "processors": "",
-                    "interactions": "",
-                    "initialStateCheck": true
-                },
-                {
-                    "name": "IkActive",
-                    "type": "Button",
-                    "id": "3f7d2e10-c5a4-4b8e-9f12-7a8b9c0d1e2f",
                     "expectedControlType": "Button",
                     "processors": "",
                     "interactions": "",
@@ -92,18 +83,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Reset",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "4a8e3f20-d6b5-4c9f-8a23-9b0c1d2e3f4a",
-                    "path": "<XRController>{RightHand}/activate",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "IkActive",
+                    "action": "PlaceArm",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
