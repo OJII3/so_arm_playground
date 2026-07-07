@@ -139,4 +139,62 @@ namespace SoArmVR.Kinematics
         public bool HasJoint(string name) => JointIndexByName.ContainsKey(name);
         public bool HasLink(string name) => LinkIndexByName.ContainsKey(name);
     }
+
+    public static class UrdfKinematics
+    {
+        static Matrix4x4 OriginToMatrix(Vector3 xyz, Vector3 rpy)
+        {
+            var rot = Quaternion.Euler(
+                Mathf.Rad2Deg * rpy.x,
+                Mathf.Rad2Deg * rpy.y,
+                Mathf.Rad2Deg * rpy.z
+            );
+            return Matrix4x4.TRS(xyz, rot, Vector3.one);
+        }
+
+        static Matrix4x4 AxisAngleToMatrix(Vector3 axis, double angleRad)
+        {
+            var q = Quaternion.AngleAxis(Mathf.Rad2Deg * (float)angleRad, axis);
+            return Matrix4x4.TRS(Vector3.zero, q, Vector3.one);
+        }
+
+        public static void ComputeLinkTransforms(
+            UrdfModel model,
+            double[] jointAngles,
+            out Matrix4x4[] linkTransforms)
+        {
+            int linkCount = model.Links.Count;
+            linkTransforms = new Matrix4x4[linkCount];
+
+            // root = world (index 0)
+            linkTransforms[0] = Matrix4x4.identity;
+
+            for (int ji = 0; ji < model.Joints.Count; ji++)
+            {
+                var joint = model.Joints[ji];
+                if (!model.LinkIndexByName.TryGetValue(joint.parent, out int parentIdx)) continue;
+                if (!model.LinkIndexByName.TryGetValue(joint.child, out int childIdx)) continue;
+
+                var parentT = linkTransforms[parentIdx];
+                var jointOrigin = OriginToMatrix(joint.origin.xyz, joint.origin.rpy);
+
+                Matrix4x4 childT;
+                if (joint.type == "revolute" || joint.type == "continuous")
+                {
+                    int angleIdx = System.Array.IndexOf(
+                        new[] { "1", "2", "3", "4", "5", "6" }, joint.name);
+                    double angle = (angleIdx >= 0 && angleIdx < jointAngles.Length)
+                        ? jointAngles[angleIdx] : 0.0;
+                    childT = parentT * jointOrigin * AxisAngleToMatrix(joint.axis, angle);
+                }
+                else
+                {
+                    // fixed or prismatic — just the origin
+                    childT = parentT * jointOrigin;
+                }
+
+                linkTransforms[childIdx] = childT;
+            }
+        }
+    }
 }
