@@ -333,7 +333,7 @@ Unity 側で IK を解き, 結果の関節角を JointTrajectory で送る. ROS 
   残置し, 新入力と旧 sink の両方が Step 3 完了まで動く形にする.
   `useLegacyVrSink=false` のときは旧 `TeleoperationSession` を
   ディスパッチしない (新入力は無視). フラグのデフォルトは `true`
-  (Step 4 で削除するまで legacy 側を既定にしない). (legacy 縮退フェーズ A)
+  (Step 4 で legacy 経路を削除するまで legacy 側を既定にする). (legacy 縮退フェーズ A)
 
 - ステップ 3: `UrdfIKSolver` + `VrTrajectorySink` + 必要 msg 生成
   (`trajectory_msgs/msg/JointTrajectory`, `JointTrajectoryPoint`,
