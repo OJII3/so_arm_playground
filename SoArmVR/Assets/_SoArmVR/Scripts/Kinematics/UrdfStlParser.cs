@@ -33,9 +33,12 @@ namespace SoArmVR.Kinematics
                 float nz = BitConverter.ToSingle(data, offset + 8);
                 var n = new Vector3(nx, ny, nz);
 
+                // STL binary stores vertices in arbitrary winding order;
+                // Unity expects counter-clockwise.  SWAP 1→2 to reverse CW→CCW.
+                int t0 = i * 3;
                 for (int j = 0; j < 3; j++)
                 {
-                    int vi = i * 3 + j;
+                    int vi = t0 + j;
                     int vo = offset + 12 + j * 12;
                     vertices[vi] = new Vector3(
                         BitConverter.ToSingle(data, vo),
@@ -43,8 +46,10 @@ namespace SoArmVR.Kinematics
                         BitConverter.ToSingle(data, vo + 8)
                     );
                     normals[vi] = n;
-                    triangles[vi] = vi;
                 }
+                triangles[t0] = t0;
+                triangles[t0 + 1] = t0 + 2;   // swap
+                triangles[t0 + 2] = t0 + 1;
             }
 
             var mesh = new Mesh();

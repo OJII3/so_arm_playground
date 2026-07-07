@@ -31,9 +31,9 @@ namespace SoArmVR.Teleoperation
 
             _fallbackMat = _defaultMaterial != null ? _defaultMaterial : new Material(Shader.Find("Universal Render Pipeline/Lit"));
 
-            var rtgo = new GameObject("RosToUnity");
-            _rosToUnity = rtgo.transform;
-            _rosToUnity.SetParent(transform);
+    var rtgo = new GameObject("RosToUnity");
+    _rosToUnity = rtgo.transform;
+    _rosToUnity.SetParent(transform);
 
             if (Model != null)
                 BuildFromUrdf();
