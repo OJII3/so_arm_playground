@@ -197,4 +197,148 @@ namespace SoArmVR.Kinematics
             }
         }
     }
+
+    public static class UrdfIKSolver
+    {
+        const int MaxIterations = 100;
+        const double Tolerance = 1e-4;
+        const double Damping = 0.01;
+        const double IkDt = 0.2;
+
+        public static bool Solve(
+            UrdfModel model,
+            Vector3 eeTargetLocalRos,
+            double[] qSeed,
+            out double[] qOut,
+            string eeLinkName = "gripper")
+        {
+            qOut = (double[])qSeed.Clone();
+
+            for (int iter = 0; iter < MaxIterations; iter++)
+            {
+                UrdfKinematics.ComputeLinkTransforms(model, qOut, out var linkTforms);
+
+                int eeIdx = model.LinkIndexByName.ContainsKey(eeLinkName)
+                    ? model.LinkIndexByName[eeLinkName] : -1;
+                if (eeIdx < 0) return false;
+
+                Vector3 eePos = linkTforms[eeIdx].GetColumn(3);
+                Vector3 err = eeTargetLocalRos - new Vector3(eePos.x, eePos.y, eePos.z);
+
+                if (err.magnitude < (float)Tolerance)
+                {
+                    ClampJoints(model, qOut);
+                    return true;
+                }
+
+                var J = new Matrix3x3();
+                double eps = 1e-6;
+                for (int j = 0; j < 3; j++)
+                {
+                    var qPlus = (double[])qOut.Clone();
+                    qPlus[j] += eps;
+                    UrdfKinematics.ComputeLinkTransforms(model, qPlus, out var tPlus);
+                    Vector3 pPlus = tPlus[eeIdx].GetColumn(3);
+
+                    var qMinus = (double[])qOut.Clone();
+                    qMinus[j] -= eps;
+                    UrdfKinematics.ComputeLinkTransforms(model, qMinus, out var tMinus);
+                    Vector3 pMinus = tMinus[eeIdx].GetColumn(3);
+
+                    Vector3 dp = (pPlus - pMinus) / (2f * (float)eps);
+                    J[0, j] = dp.x;
+                    J[1, j] = dp.y;
+                    J[2, j] = dp.z;
+                }
+
+                var jjt = J * J.Transpose();
+                jjt[0, 0] += Damping;
+                jjt[1, 1] += Damping;
+                jjt[2, 2] += Damping;
+
+                var jjtInv = jjt.Inverse();
+                var errV3 = new Vector3(err.x, err.y, err.z);
+                var dqPosV3 = J.Transpose() * (jjtInv * errV3);
+
+                for (int j = 0; j < 3; j++)
+                {
+                    qOut[j] += dqPosV3[j] * IkDt;
+                }
+
+                ClampJoints(model, qOut);
+            }
+
+            return false;
+        }
+
+        static void ClampJoints(UrdfModel model, double[] q)
+        {
+            for (int ji = 0; ji < model.Joints.Count; ji++)
+            {
+                var j = model.Joints[ji];
+                int idx = System.Array.IndexOf(new[] { "1", "2", "3", "4", "5", "6" }, j.name);
+                if (idx < 0 || idx >= q.Length) continue;
+                q[idx] = System.Math.Clamp(q[idx], j.limit.lower, j.limit.upper);
+            }
+        }
+
+        struct Matrix3x3
+        {
+            public double[,] m;
+            public Matrix3x3(bool init) => m = new double[3, 3];
+            public double this[int r, int c]
+            {
+                get => m?[r, c] ?? 0;
+                set { if (m == null) m = new double[3, 3]; m[r, c] = value; }
+            }
+
+            public Matrix3x3 Transpose()
+            {
+                var r = new Matrix3x3(true);
+                for (int i = 0; i < 3; i++)
+                    for (int j = 0; j < 3; j++)
+                        r[j, i] = this[i, j];
+                return r;
+            }
+
+            public static Matrix3x3 operator *(Matrix3x3 a, Matrix3x3 b)
+            {
+                var r = new Matrix3x3(true);
+                for (int i = 0; i < 3; i++)
+                    for (int j = 0; j < 3; j++)
+                        for (int k = 0; k < 3; k++)
+                            r[i, j] += a[i, k] * b[k, j];
+                return r;
+            }
+
+            public static Vector3 operator *(Matrix3x3 a, Vector3 v)
+            {
+                return new Vector3(
+                    (float)(a[0, 0] * v.x + a[0, 1] * v.y + a[0, 2] * v.z),
+                    (float)(a[1, 0] * v.x + a[1, 1] * v.y + a[1, 2] * v.z),
+                    (float)(a[2, 0] * v.x + a[2, 1] * v.y + a[2, 2] * v.z));
+            }
+
+            public Matrix3x3 Inverse()
+            {
+                double det = this[0, 0] * (this[1, 1] * this[2, 2] - this[1, 2] * this[2, 1])
+                           - this[0, 1] * (this[1, 0] * this[2, 2] - this[1, 2] * this[2, 0])
+                           + this[0, 2] * (this[1, 0] * this[2, 1] - this[1, 1] * this[2, 0]);
+                if (System.Math.Abs(det) < 1e-15) return new Matrix3x3(true);
+
+                double invDet = 1.0 / det;
+                var r = new Matrix3x3(true);
+                r[0, 0] = (this[1, 1] * this[2, 2] - this[1, 2] * this[2, 1]) * invDet;
+                r[0, 1] = (this[0, 2] * this[2, 1] - this[0, 1] * this[2, 2]) * invDet;
+                r[0, 2] = (this[0, 1] * this[1, 2] - this[0, 2] * this[1, 1]) * invDet;
+                r[1, 0] = (this[1, 2] * this[2, 0] - this[1, 0] * this[2, 2]) * invDet;
+                r[1, 1] = (this[0, 0] * this[2, 2] - this[0, 2] * this[2, 0]) * invDet;
+                r[1, 2] = (this[0, 2] * this[1, 0] - this[0, 0] * this[1, 2]) * invDet;
+                r[2, 0] = (this[1, 0] * this[2, 1] - this[1, 1] * this[2, 0]) * invDet;
+                r[2, 1] = (this[0, 1] * this[2, 0] - this[0, 0] * this[2, 1]) * invDet;
+                r[2, 2] = (this[0, 0] * this[1, 1] - this[0, 1] * this[1, 0]) * invDet;
+                return r;
+            }
+        }
+    }
 }
