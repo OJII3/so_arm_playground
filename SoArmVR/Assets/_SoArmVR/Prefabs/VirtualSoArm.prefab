@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.VirtualSoArm
   _urdfAsset: {fileID: 4900000, guid: 1c391336c44bc5f659127e8310492eda, type: 3}
-  _rosToUnity: {fileID: 0}
-  _linkTransforms: []
+  _defaultMaterial: {fileID: 0}
   _ikSuccessMaterial: {fileID: 0}
   _ikFailMaterial: {fileID: 0}
+  _meshResourcesPath: meshes/so101

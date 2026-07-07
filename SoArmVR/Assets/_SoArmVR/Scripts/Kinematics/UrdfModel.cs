@@ -33,10 +33,30 @@ namespace SoArmVR.Kinematics
         public UrdfJointLimit limit;
     }
 
+    public enum UrdfGeometryType { Box, Cylinder, Sphere, Mesh }
+
+    [Serializable]
+    public struct UrdfGeometry
+    {
+        public UrdfGeometryType type;
+        public Vector3 size;       // for box
+        public float radius;       // for cylinder / sphere
+        public float length;       // for cylinder
+        public string meshFilename; // for mesh
+    }
+
+    [Serializable]
+    public struct UrdfVisual
+    {
+        public UrdfOrigin origin;
+        public UrdfGeometry geometry;
+    }
+
     [Serializable]
     public class UrdfLink
     {
         public string name;
+        public List<UrdfVisual> visuals = new();
     }
 
     public class UrdfModel
@@ -66,7 +86,59 @@ namespace SoArmVR.Kinematics
                 {
                     var name = node.Attributes?["name"]?.Value;
                     if (string.IsNullOrEmpty(name)) continue;
-                    model.Links.Add(new UrdfLink { name = name });
+                    var link = new UrdfLink { name = name };
+
+                    // Parse <visual> children
+                    var visualNodes = node.SelectNodes("visual");
+                    if (visualNodes != null)
+                    {
+                        foreach (XmlNode vn in visualNodes)
+                        {
+                            var visual = new UrdfVisual();
+
+                            var originNode = vn.SelectSingleNode("origin");
+                            if (originNode != null)
+                            {
+                                visual.origin.xyz = ParseVector3(originNode.Attributes?["xyz"]?.Value ?? "0 0 0");
+                                visual.origin.rpy = ParseVector3(originNode.Attributes?["rpy"]?.Value ?? "0 0 0");
+                            }
+
+                            var geomNode = vn.SelectSingleNode("geometry");
+                            if (geomNode != null)
+                            {
+                                var box = geomNode.SelectSingleNode("box");
+                                var cylinder = geomNode.SelectSingleNode("cylinder");
+                                var sphere = geomNode.SelectSingleNode("sphere");
+                                var mesh = geomNode.SelectSingleNode("mesh");
+
+                                if (box != null)
+                                {
+                                    visual.geometry.type = UrdfGeometryType.Box;
+                                    visual.geometry.size = ParseVector3(box.Attributes?["size"]?.Value ?? "1 1 1");
+                                }
+                                else if (cylinder != null)
+                                {
+                                    visual.geometry.type = UrdfGeometryType.Cylinder;
+                                    float.TryParse(cylinder.Attributes?["radius"]?.Value ?? "0.5", out visual.geometry.radius);
+                                    float.TryParse(cylinder.Attributes?["length"]?.Value ?? "1", out visual.geometry.length);
+                                }
+                                else if (sphere != null)
+                                {
+                                    visual.geometry.type = UrdfGeometryType.Sphere;
+                                    float.TryParse(sphere.Attributes?["radius"]?.Value ?? "0.5", out visual.geometry.radius);
+                                }
+                                else if (mesh != null)
+                                {
+                                    visual.geometry.type = UrdfGeometryType.Mesh;
+                                    visual.geometry.meshFilename = mesh.Attributes?["filename"]?.Value ?? "";
+                                }
+                            }
+
+                            link.visuals.Add(visual);
+                        }
+                    }
+
+                    model.Links.Add(link);
                     model.LinkIndexByName[name] = model.Links.Count - 1;
                 }
             }
