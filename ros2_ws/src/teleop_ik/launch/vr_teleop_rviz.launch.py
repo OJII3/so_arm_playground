@@ -9,16 +9,45 @@ all be spawned against the same yaml used by the real hardware launch.
 import os
 
 from ament_index_python.packages import get_package_share_directory
-from launch import LaunchDescription
+from launch import LaunchContext, LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    OpaqueFunction,
     TimerAction,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+
+
+def _check_file(path, label):
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"vr_teleop_rviz: {label} not found at {path!r}. "
+            f"Pass a different path via the corresponding launch argument, "
+            f"or rebuild the affected package."
+        )
+
+
+def _preflight(context: LaunchContext, *args, **kwargs):
+    """Validate launch arg paths at runtime.
+
+    Runs once after launch argument substitution so that user-supplied
+    overrides are also checked. Raises FileNotFoundError to fail fast with
+    a clear message instead of letting xacro / rviz2 / controller_manager
+    report a more cryptic error.
+    """
+    paths = {
+        "urdf_path": LaunchConfiguration("urdf_path").perform(context),
+        "controllers_file": LaunchConfiguration("controllers_file").perform(context),
+        "rviz_config": LaunchConfiguration("rviz_config").perform(context),
+        "params_file": LaunchConfiguration("params_file").perform(context),
+    }
+    for label, path in paths.items():
+        _check_file(path, label)
+    return []
 
 
 def generate_launch_description():
@@ -59,6 +88,8 @@ def generate_launch_description():
         default_value=default_params,
         description="Path to teleop_ik parameter YAML",
     )
+
+    preflight_check = OpaqueFunction(function=_preflight)
 
     robot_description = ParameterValue(
         Command(["xacro ", LaunchConfiguration("urdf_path")]),
@@ -131,6 +162,7 @@ def generate_launch_description():
             controllers_arg,
             rviz_arg,
             params_arg,
+            preflight_check,
             robot_state_publisher_node,
             controller_manager_node,
             spawners,
