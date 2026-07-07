@@ -2,7 +2,10 @@
 //     このファイルは rosettadds-genmsg により生成されました。手動で編集しないでください。
 //     source: trajectory_msgs/msg/JointTrajectory
 // </auto-generated>
+using System;
 using ROSettaDDS.Cdr;
+using ROSettaDDS.Msgs.Std;
+using ROSettaDDS.Msgs.BuiltinInterfaces;
 
 namespace ROSettaDDS.Msgs.Trajectory
 {

@@ -56,6 +56,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4627558719458276080}
+  - component: {fileID: 100004}
+  - component: {fileID: 100005}
+  - component: {fileID: 100006}
   m_Layer: 0
   m_Name: Teleoperation
   m_TagString: Untagged
@@ -79,8 +82,7 @@ Transform:
   - {fileID: 7597658285083808091}
   - {fileID: 7326122894673887826}
   - {fileID: 3413977946599981539}
-  - {fileID: 4235953346029495736}
-  - {fileID: 2290140481064402710}
+  - {fileID: 100001}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &7901722505544547977
@@ -143,114 +145,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa850fbd5b8aded44846f96e35f1a9f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.XR.ARFoundation::UnityEngine.XR.ARFoundation.ARInputManager
---- !u!1 &8676189544263092803
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2290140481064402710}
-  - component: {fileID: 8892032476465055185}
-  - component: {fileID: 4344990714880174040}
-  m_Layer: 0
-  m_Name: Teleoperation Session
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2290140481064402710
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8676189544263092803}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 4627558719458276080}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &8892032476465055185
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8676189544263092803}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 090bcba53d8a04f65b8424522acd5621, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.RosTeleoperationSink
---- !u!114 &4344990714880174040
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8676189544263092803}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 237e773c6f3a4457f8a807ce8d8e5d21, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.TeleoperationSession
-  _poseSource: {fileID: 5208336468798282873}
-  _anchor: {fileID: 6901217975784877817}
-  _sinkBehaviour: {fileID: 8892032476465055185}
-  _teleoperateAction:
-    m_UseReference: 1
-    m_Action:
-      m_Name: 
-      m_Type: 0
-      m_ExpectedControlType: 
-      m_Id: b4c93164-846c-4850-9112-496fe51bbb2c
-      m_Processors: 
-      m_Interactions: 
-      m_SingletonActionBindings: []
-      m_Flags: 0
-    m_Reference: {fileID: -8163299166210921234, guid: 2ce0dfd68d5744e8b84cfa36618c0e25, type: 3}
-  _gripperAction:
-    m_UseReference: 1
-    m_Action:
-      m_Name: 
-      m_Type: 0
-      m_ExpectedControlType: 
-      m_Id: f9cd616b-5e56-47ed-9c52-cbc4d0c89bcb
-      m_Processors: 
-      m_Interactions: 
-      m_SingletonActionBindings: []
-      m_Flags: 0
-    m_Reference: {fileID: 4244546143955729494, guid: 2ce0dfd68d5744e8b84cfa36618c0e25, type: 3}
-  _stickAction:
-    m_UseReference: 1
-    m_Action:
-      m_Name: 
-      m_Type: 0
-      m_ExpectedControlType: 
-      m_Id: a3f8feb7-c093-44fb-b070-e53314a0e7ee
-      m_Processors: 
-      m_Interactions: 
-      m_SingletonActionBindings: []
-      m_Flags: 0
-    m_Reference: {fileID: -6867303212546052101, guid: 2ce0dfd68d5744e8b84cfa36618c0e25, type: 3}
-  _ikActiveAction:
-    m_UseReference: 1
-    m_Action:
-      m_Name: 
-      m_Type: 0
-      m_ExpectedControlType: 
-      m_Id: 229552c1-27cf-4db4-bebe-308f4244dfa5
-      m_Processors: 
-      m_Interactions: 
-      m_SingletonActionBindings: []
-      m_Flags: 0
-    m_Reference: {fileID: -7194512972902737872, guid: 2ce0dfd68d5744e8b84cfa36618c0e25, type: 3}
+
 --- !u!1001 &2177573524899313375
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -318,76 +213,180 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 8595126905216329604, guid: e0d253e4e201b95449b5292f1fe55d79, type: 3}
   m_PrefabInstance: {fileID: 2177573524899313375}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &3881153116036145484
-PrefabInstance:
+--- !u!1 &100001
+GameObject:
   m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 4627558719458276080}
-    m_Modifications:
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8565359199064979133, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-      propertyPath: m_Name
-      value: Anchor
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
---- !u!4 &4235953346029495736 stripped
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 100002}
+  - component: {fileID: 100003}
+  m_Layer: 0
+  m_Name: VirtualSoArm
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &100002
 Transform:
-  m_CorrespondingSourceObject: {fileID: 1086916800111379700, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-  m_PrefabInstance: {fileID: 3881153116036145484}
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &6901217975784877817 stripped
+  m_GameObject: {fileID: 100001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4627558719458276080}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &100003
 MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 7645613659293388725, guid: 2609f20cc074f18e9b9f046ed3f152bf, type: 3}
-  m_PrefabInstance: {fileID: 3881153116036145484}
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 100001}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 00635018dc3854359969d2a18dc0e623, type: 3}
+  m_Script: {fileID: 11500000, guid: f616794790944a378c15682fcee2d8f7, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.WorldAlignedAnchor
+  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.VirtualSoArm
+  _urdfAsset: {fileID: 4900000, guid: 1c391336c44bc5f659127e8310492eda, type: 3}
+  _rosToUnity: {fileID: 0}
+  _linkTransforms: []
+  _ikSuccessMaterial: {fileID: 0}
+  _ikFailMaterial: {fileID: 0}
+--- !u!114 &100004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6230245041757856946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cda0633edc2d4fdea0786fb6c76862ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.ArmPlacementController
+  _virtualSoArm: {fileID: 100003}
+  _rightController: {fileID: 0}
+  _raycastManager: {fileID: 0}
+  _placementPreview: {fileID: 0}
+  _placeAction:
+    m_UseReference: 0
+    m_Action:
+      m_Name: PlaceArm
+      m_Type: 1
+      m_ExpectedControlType: Button
+      m_Id: f3f410d0-c5ea-445e-a170-7540abfca6e8
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: fc53f8a9-7ab3-4996-957f-f8c8fe3bab02
+        m_Path: <XRController>{RightHand}/primaryButton
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: PlaceArm
+        m_Flags: 0
+      m_Flags: 0
+    m_Reference: {fileID: 0}
+--- !u!114 &100005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6230245041757856946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7bf9d8c783774baebac4bd26a7eda321, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.ArmTeleoperationController
+  _virtualSoArm: {fileID: 100003}
+  _rightController: {fileID: 0}
+  _gripAction:
+    m_UseReference: 0
+    m_Action:
+      m_Name: Teleoperate
+      m_Type: 1
+      m_ExpectedControlType: Button
+      m_Id: 8d6690f1-b046-4384-baec-585da3f83920
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: 88df4ef0-32c1-4d6a-bb3c-3c9df5932eb1
+        m_Path: <XRController>{RightHand}/gripPressed
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Teleoperate
+        m_Flags: 0
+      m_Flags: 0
+    m_Reference: {fileID: 0}
+  _triggerAction:
+    m_UseReference: 0
+    m_Action:
+      m_Name: Gripper
+      m_Type: 0
+      m_ExpectedControlType: Axis
+      m_Id: 09fa5555-240f-4c8c-969c-818708a05783
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: b2382962-9e48-4f90-baad-93b3a9020d39
+        m_Path: <XRController>{RightHand}/trigger
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Gripper
+        m_Flags: 0
+      m_Flags: 0
+    m_Reference: {fileID: 0}
+  _stickAction:
+    m_UseReference: 0
+    m_Action:
+      m_Name: Stick
+      m_Type: 0
+      m_ExpectedControlType: Vector2
+      m_Id: 6d6a5d7b-9c7a-4b6e-9c0c-1f1f1f1f1f1f
+      m_Processors: 
+      m_Interactions: 
+      m_SingletonActionBindings:
+      - m_Name: 
+        m_Id: 7a7a5d7b-9c7a-4b6e-9c0c-2f2f2f2f2f2f
+        m_Path: <XRController>{RightHand}/primary2DAxis
+        m_Interactions: 
+        m_Processors: 
+        m_Groups: 
+        m_Action: Stick
+        m_Flags: 0
+      m_Flags: 0
+    m_Reference: {fileID: 0}
+  _positionScale: 1
+  _j5RadPerSec: 1.5
+  _stickDeadzone: 0.1
+--- !u!114 &100006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6230245041757856946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d82a45f1c1a04f4e948c3b0b6f5e1c8d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: SoArmVR::SoArmVR.Teleoperation.VrTrajectorySink
+  _virtualSoArm: {fileID: 100003}
+  _trajectoryDt: 0.1
+

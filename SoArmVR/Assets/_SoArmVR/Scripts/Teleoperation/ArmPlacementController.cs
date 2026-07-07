@@ -19,6 +19,29 @@ namespace SoArmVR.Teleoperation
         bool _isHolding;
         bool _isPlaced;
 
+        void Awake()
+        {
+            if (_raycastManager == null)
+                _raycastManager = FindObjectOfType<ARRaycastManager>();
+            if (_virtualSoArm == null)
+                _virtualSoArm = GetComponentInChildren<VirtualSoArm>();
+            if (_rightController == null)
+            {
+                var origin = FindObjectOfType<XROrigin>();
+                if (origin != null)
+                    _rightController = origin.transform.Find("Camera Offset/Right Hand");
+            }
+            if (_placeAction.action == null)
+            {
+                var assets = Resources.FindObjectsOfTypeAll<InputActionAsset>();
+                foreach (var a in assets)
+                {
+                    var act = a.FindAction("PlaceArm");
+                    if (act != null) { _placeAction = new InputActionProperty(act); break; }
+                }
+            }
+        }
+
         void Update()
         {
             bool hold = _placeAction.action != null && _placeAction.action.IsPressed();

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.XR.CoreUtils;
 
 namespace SoArmVR.Teleoperation
 {
@@ -30,6 +31,39 @@ namespace SoArmVR.Teleoperation
         void Awake()
         {
             _j5Integrated = 0.0;
+
+            if (_virtualSoArm == null)
+                _virtualSoArm = GetComponentInChildren<VirtualSoArm>();
+            if (_rightController == null)
+            {
+                var origin = FindObjectOfType<XROrigin>();
+                if (origin != null)
+                    _rightController = origin.transform.Find("Camera Offset/Right Hand");
+            }
+            if (_gripAction.action == null || _triggerAction.action == null || _stickAction.action == null)
+            {
+                var assets = Resources.FindObjectsOfTypeAll<InputActionAsset>();
+                foreach (var a in assets)
+                {
+                    var telem = a.FindActionMap("Teleoperation");
+                    if (telem == null) continue;
+                    if (_gripAction.action == null)
+                    {
+                        var act = telem.FindAction("Teleoperate");
+                        if (act != null) _gripAction = new InputActionProperty(act);
+                    }
+                    if (_triggerAction.action == null)
+                    {
+                        var act = telem.FindAction("Gripper");
+                        if (act != null) _triggerAction = new InputActionProperty(act);
+                    }
+                    if (_stickAction.action == null)
+                    {
+                        var act = telem.FindAction("Stick");
+                        if (act != null) _stickAction = new InputActionProperty(act);
+                    }
+                }
+            }
         }
 
         void Update()

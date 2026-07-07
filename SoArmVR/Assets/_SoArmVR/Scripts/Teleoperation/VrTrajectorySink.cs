@@ -3,7 +3,7 @@ using ROSettaDDS.Dds;
 using ROSettaDDS.Dds.QoS;
 using ROSettaDDS.Msgs.Std;
 using ROSettaDDS.Msgs.BuiltinInterfaces;
-using ROSettaDDS.Msgs.TrajectoryMsgs;
+using ROSettaDDS.Msgs.Trajectory;
 using RosDuration = ROSettaDDS.Msgs.BuiltinInterfaces.Duration;
 using RosTime = ROSettaDDS.Msgs.BuiltinInterfaces.Time;
 

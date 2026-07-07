@@ -25,6 +25,27 @@ namespace SoArmVR.Teleoperation
         {
             if (_urdfAsset != null)
                 Model = UrdfModel.FromTextAsset(_urdfAsset);
+
+            if (_rosToUnity == null)
+            {
+                var go = new GameObject("RosToUnity");
+                _rosToUnity = go.transform;
+                _rosToUnity.SetParent(transform);
+            }
+
+            if (_linkTransforms == null || _linkTransforms.Length == 0)
+            {
+                int count = Model?.Joints.Count ?? 1;
+                _linkTransforms = new Transform[count];
+                for (int i = 0; i < count; i++)
+                {
+                    var link = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    link.transform.SetParent(_rosToUnity);
+                    link.name = $"Link_{i}";
+                    _linkTransforms[i] = link.transform;
+                }
+            }
+
             QSolution = new double[6];
             CurrentJoints = new double[6];
             SetGhostVisible(false);
