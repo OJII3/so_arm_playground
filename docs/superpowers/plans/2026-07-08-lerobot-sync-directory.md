@@ -27,19 +27,19 @@
 - Create: `lerobot/pyproject.toml`
 - Create: `lerobot/.python-version`
 
-- [ ] **Step 1: lerobot/ ディレクトリを作成**
+- [x] **Step 1: lerobot/ ディレクトリを作成**
 
 ```bash
 mkdir -p lerobot
 ```
 
-- [ ] **Step 2: .python-version を作成**
+- [x] **Step 2: .python-version を作成**
 
 ```bash
 echo "3.12" > lerobot/.python-version
 ```
 
-- [ ] **Step 3: pyproject.toml を作成**
+- [x] **Step 3: pyproject.toml を作成**
 
 `lerobot/pyproject.toml` を作成:
 
@@ -53,18 +53,17 @@ dependencies = [
     "lerobot[core_scripts,training,feetech]",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv]
+package = false
 ```
 
-- [ ] **Step 4: uv sync で依存をインストール**
+- [x] **Step 4: uv sync で依存をインストール**
 
 ```bash
 cd lerobot && uv sync
 ```
 
-- [ ] **Step 5: lerobot-info で動作確認**
+- [x] **Step 5: lerobot-info で動作確認**
 
 ```bash
 cd lerobot && uv run lerobot-info
@@ -72,7 +71,7 @@ cd lerobot && uv run lerobot-info
 
 Expected: LeRobot のバージョン情報が表示される
 
-- [ ] **Step 6: コミット**
+- [x] **Step 6: コミット**
 
 ```bash
 git add lerobot/pyproject.toml lerobot/.python-version lerobot/uv.lock
@@ -86,7 +85,7 @@ git commit -m "feat(lerobot): add uv project with LeRobot CLI dependencies"
 **Files:**
 - Create: `lerobot/README.md`
 
-- [ ] **Step 1: README.md を作成**
+- [x] **Step 1: README.md を作成**
 
 `lerobot/README.md` を作成:
 
@@ -199,7 +198,7 @@ uv run lerobot-rollout \
 ```
 ```
 
-- [ ] **Step 2: コミット**
+- [x] **Step 2: コミット**
 
 ```bash
 git add lerobot/README.md
@@ -213,7 +212,7 @@ git commit -m "docs(lerobot): add SO-101 leader/follower sync and ACT workflow"
 **Files:**
 - Modify: `README.md:7-9`
 
-- [ ] **Step 1: 構成セクションに lerobot/ を追加**
+- [x] **Step 1: 構成セクションに lerobot/ を追加**
 
 既存の `ros2_ws/` の後に追加:
 
@@ -221,7 +220,7 @@ git commit -m "docs(lerobot): add SO-101 leader/follower sync and ACT workflow"
 - `lerobot/`: LeRobot CLI による SO-101 の leader/follower 同期・データ収録・ACT 学習環境。詳細は [`lerobot/README.md`](lerobot/README.md)
 ```
 
-- [ ] **Step 2: コミット**
+- [x] **Step 2: コミット**
 
 ```bash
 git add README.md

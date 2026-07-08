@@ -24,8 +24,11 @@ SO-101 の leader arm と follower arm を公式 LeRobot CLI で同期させ、A
 作らないもの:
 
 - ROS 2 とのブリッジ
-- Nix shell (flak.nix 変更なし)
 - LeRobot の vendoring
+
+追加するもの (設計時の想定から変更):
+
+- `flake.nix` に `ffmpeg-headless` と `LD_LIBRARY_PATH` を追加 (torchcodec の FFmpeg 共有ライブラリ依存)
 
 ## 設計
 
@@ -50,9 +53,8 @@ dependencies = [
     "lerobot[core_scripts,training,feetech]",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv]
+package = false
 ```
 
 ### README.md の内容
