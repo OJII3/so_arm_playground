@@ -2000,7 +2000,7 @@ wheels = [
 [[package]]
 name = "so-arm-lerobot"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "lerobot", extra = ["core-scripts", "feetech", "training"] },
 ]

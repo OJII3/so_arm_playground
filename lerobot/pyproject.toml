@@ -7,9 +7,5 @@ dependencies = [
     "lerobot[core_scripts,training,feetech]",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["."]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv]
+package = false
