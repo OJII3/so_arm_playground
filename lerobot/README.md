@@ -6,6 +6,7 @@ ACT ポリシーの収録・学習・推論を行うための環境。
 ## セットアップ
 
 ```bash
+nix develop        # FFmpeg 等のシステム依存を提供
 cd lerobot
 uv sync
 ```
