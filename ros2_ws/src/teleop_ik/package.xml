@@ -3,7 +3,7 @@
 <package format="3">
   <name>teleop_ik</name>
   <version>0.1.0</version>
-  <description>VR teleop IK node for SO-101 arm using Pinocchio (C++)</description>
+  <description>Gamepad teleop and IK node for SO-101 arm using Pinocchio (C++)</description>
   <maintainer email="ojii3dev@gmail.com">OJII3</maintainer>
   <license>MIT</license>
 

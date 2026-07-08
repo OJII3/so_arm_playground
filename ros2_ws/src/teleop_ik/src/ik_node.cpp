@@ -21,8 +21,6 @@
 #include <pinocchio/parsers/urdf.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-#include "teleop_ik/coordinate_utils.hpp"
-
 namespace teleop_ik
 {
 
@@ -124,18 +122,10 @@ void TeleopIKNode::init_ros_node()
   this->declare_parameter<int>("ik_max_iterations", 100);
   this->declare_parameter<double>("ik_tolerance", 1e-4);
   this->declare_parameter<double>("trajectory_time_from_start", 0.1);
-  this->declare_parameter<bool>("unity_conversion", true);
   this->declare_parameter<double>("stick_velocity_scale", 1.5);
   this->declare_parameter<double>("stick_deadzone", 0.1);
   this->declare_parameter<double>("stick_max_delta_per_msg", 0.2);
   this->declare_parameter<double>("stick_fallback_dt", 0.0111);
-  this->declare_parameter<double>("home_j1_rad", 0.0);
-  this->declare_parameter<double>("home_j2_rad", 0.0);
-  this->declare_parameter<double>("home_j3_rad", 0.0);
-  this->declare_parameter<double>("home_j4_rad", 0.0);
-  this->declare_parameter<double>("home_j5_rad", 0.0);
-  this->declare_parameter<double>("home_j6_rad", 0.0);
-  this->declare_parameter<double>("reset_duration_sec", 2.0);
 
   // URDF 読み込み & モデル構築
   const auto urdf_path = this->get_parameter("urdf_path").as_string();
@@ -192,9 +182,6 @@ void TeleopIKNode::init_ros_node()
   sub_joint_states_ = this->create_subscription<sensor_msgs::msg::JointState>(
       "/follower/joint_states", 10,
       std::bind(&TeleopIKNode::on_joint_states_msg, this, std::placeholders::_1));
-  sub_reset_ = this->create_subscription<teleop_ik::msg::ResetCommand>(
-      "/teleop/reset", 10,
-      std::bind(&TeleopIKNode::on_reset_msg, this, std::placeholders::_1));
 
   pub_arm_ = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
       "/follower/arm_controller/joint_trajectory", 10);
@@ -324,7 +311,7 @@ void TeleopIKNode::on_active(bool active)
       pinocchio::forwardKinematics(model_, data_, q_current_);
       pinocchio::updateFramePlacements(model_, data_);
       arm_init_pos_ = data_.oMf[ee_frame_id_].translation();
-      unity_anchor_set_ = false;
+      anchor_set_ = false;
       q_solution_ = q_current_;
       // wrist 初期角 = q_current_ の joint 4/5 値.
       // wrist_joint_ids_[0]=joint 4 → stick_y (wrist_init_pos.y())
@@ -377,7 +364,6 @@ bool TeleopIKNode::on_target_with_input(
     double stick_deadzone,
     double stick_max_delta_per_msg,
     double stick_fallback_dt,
-    bool unity_conversion,
     double ik_damping, int ik_max_iterations, double ik_tolerance)
 {
   if (!active_) {
@@ -385,18 +371,13 @@ bool TeleopIKNode::on_target_with_input(
   }
 
   Eigen::Vector3d ros_pos;
-  if (unity_conversion) {
-    ros_pos = teleop_ik::unity_position_to_ros(
-        pose.position.x, pose.position.y, pose.position.z, position_scale);
-  } else {
-    ros_pos << pose.position.x * position_scale,
-               pose.position.y * position_scale,
-               pose.position.z * position_scale;
-  }
+  ros_pos << pose.position.x * position_scale,
+             pose.position.y * position_scale,
+             pose.position.z * position_scale;
 
-  if (!unity_anchor_set_) {
-    unity_anchor_pos_ = ros_pos;
-    unity_anchor_set_ = true;
+  if (!anchor_set_) {
+    anchor_pos_ = ros_pos;
+    anchor_set_ = true;
     last_msg_stamp_ = stamp_to_time(stamp);
     return false;
   }
@@ -421,20 +402,19 @@ bool TeleopIKNode::on_target_with_input(
   integrated_stick_.x() += vx_c * stick_velocity_scale * delta_t;
   integrated_stick_.y() += vy_c * stick_velocity_scale * delta_t;
 
-  // IK mode への再突入時、wrist mode 中に蓄積した VR controller drift を除去し、
-  // 現在 EE 位置を新しいセッション基準点とする。これにより復帰時の位置ジャンプを防ぐ。
-  if (ik_active && !prev_ik_active_ && unity_anchor_set_) {
-    // 現在 EE 位置を新しい arm_init_pos_ として基準化
+  // IK mode 再突入時、wrist mode 中に蓄積した controller drift を除去し、
+  // 現在 EE 位置を新しい arm_init_pos_ として基準化する。
+  if (ik_active && !prev_ik_active_ && anchor_set_) {
     pinocchio::forwardKinematics(model_, data_, q_solution_);
     pinocchio::updateFramePlacements(model_, data_);
     arm_init_pos_ = data_.oMf[ee_frame_id_].translation();
-    unity_anchor_pos_ = ros_pos;
+    anchor_pos_ = ros_pos;
   }
   prev_ik_active_ = ik_active;
 
   if (ik_active) {
     // --- IK mode: solve for position, then inject wrist FK ---
-    const Eigen::Vector3d delta = ros_pos - unity_anchor_pos_;
+    const Eigen::Vector3d delta = ros_pos - anchor_pos_;
     const Eigen::Vector3d target_pos = arm_init_pos_ + delta;
 
     Eigen::VectorXd q_seed = q_solution_;
@@ -532,7 +512,6 @@ void TeleopIKNode::on_active_msg(const std_msgs::msg::Bool::SharedPtr msg)
 
 void TeleopIKNode::on_target_msg(const teleop_ik::msg::TargetPoseWithInput::SharedPtr msg)
 {
-  // Use msg->ik_active directly. Gamepad sets it explicitly; VR controller can toggle.
   const bool solved = on_target_with_input(
       msg->pose, msg->stick_x, msg->stick_y, msg->header.stamp,
       msg->ik_active,
@@ -541,7 +520,6 @@ void TeleopIKNode::on_target_msg(const teleop_ik::msg::TargetPoseWithInput::Shar
       this->get_parameter("stick_deadzone").as_double(),
       this->get_parameter("stick_max_delta_per_msg").as_double(),
       this->get_parameter("stick_fallback_dt").as_double(),
-      this->get_parameter("unity_conversion").as_bool(),
       this->get_parameter("ik_damping").as_double(),
       this->get_parameter("ik_max_iterations").as_int(),
       this->get_parameter("ik_tolerance").as_double());
@@ -573,45 +551,6 @@ void TeleopIKNode::on_joint_states_msg(const sensor_msgs::msg::JointState::Share
       on_joint_state(msg->name[i], msg->position[i]);
     }
   }
-}
-
-void TeleopIKNode::on_reset_msg(const teleop_ik::msg::ResetCommand::SharedPtr msg)
-{
-  on_reset(*msg);
-}
-
-void TeleopIKNode::on_reset(const teleop_ik::msg::ResetCommand & msg)
-{
-  std::array<double, 6> home{};
-  const std::array<const char *, 6> param_names = {
-    "home_j1_rad", "home_j2_rad", "home_j3_rad",
-    "home_j4_rad", "home_j5_rad", "home_j6_rad",
-  };
-  for (size_t i = 0; i < 6; ++i) {
-    if (!std::isnan(msg.home_joints[i])) {
-      home[i] = msg.home_joints[i];
-    } else {
-      home[i] = this->get_parameter(param_names[i]).as_double();
-    }
-  }
-
-  double duration = msg.duration_sec;
-  if (!(duration > 0.0)) {
-    duration = this->get_parameter("reset_duration_sec").as_double();
-  }
-
-  active_ = false;
-  unity_anchor_set_ = false;
-  integrated_stick_.setZero();
-
-  Eigen::VectorXd q_arm = Eigen::VectorXd::Zero(model_.nq);
-  for (size_t i = 0; i < 5; ++i) {
-    if (arm_joint_ids_[i] == static_cast<pinocchio::JointIndex>(-1)) continue;
-    const auto idx_q = model_.joints[arm_joint_ids_[i]].idx_q();
-    q_arm[idx_q] = home[i];
-  }
-  pub_arm_->publish(make_arm_trajectory(q_arm, duration));
-  pub_gripper_->publish(make_gripper_trajectory(home[5], duration));
 }
 
 }  // namespace teleop_ik

@@ -27,13 +27,11 @@ find_package(pinocchio REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   msg/TargetPoseWithInput.msg
-  msg/ResetCommand.msg
   DEPENDENCIES geometry_msgs std_msgs
 )
 
 # --- C++ core library (no main) ---
 add_library(teleop_ik_core
-  src/coordinate_utils.cpp
   src/ik_node.cpp
 )
 target_include_directories(teleop_ik_core PUBLIC
@@ -86,13 +84,9 @@ ament_export_dependencies(Eigen3 pinocchio rclcpp)
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(ament_index_cpp REQUIRED)
-  ament_add_gtest(test_coordinate_utils_cpp test/test_coordinate_utils.cpp)
-  target_link_libraries(test_coordinate_utils_cpp teleop_ik_core)
   ament_add_gtest(test_target_msg_cpp test/test_target_msg.cpp)
   ament_target_dependencies(test_target_msg_cpp rosidl_typesupport_cpp)
   target_link_libraries(test_target_msg_cpp teleop_ik__rosidl_typesupport_cpp)
-  ament_add_gtest(test_reset_msg_cpp test/test_reset_msg.cpp)
-  target_link_libraries(test_reset_msg_cpp teleop_ik__rosidl_typesupport_cpp)
   ament_add_gtest(test_ik_node_helpers_cpp test/test_ik_node_helpers.cpp)
   target_link_libraries(test_ik_node_helpers_cpp teleop_ik_core)
   ament_target_dependencies(test_ik_node_helpers_cpp

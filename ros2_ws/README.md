@@ -120,12 +120,6 @@ ros2 launch lerobot_controller so101_follower_controller.launch.py \
 # リーダー・フォロワー (teleoperation)
 ros2 launch lerobot_controller so101_leader_follower.launch.py
 
-# SoArmVR・フォロワー実機 (VR teleoperation)
-ros2 launch teleop_ik vr_teleop.launch.py usb_port:=/dev/ttyACM0
-
-# SoArmVR + RViz (実機/Gazebo なしで VR テレオペ動作確認)
-ros2 launch teleop_ik vr_teleop_rviz.launch.py
-
 # MoveIt 2
 ros2 launch lerobot_moveit so101_moveit.launch.py is_sim:=False
 
@@ -134,16 +128,16 @@ ros2 run feetech_ros2_driver feetech_calibration_node --ros-args \
   -p usb_port:=/dev/ttyACM0 -p save_path:=./calib.json
 ```
 
-VR テレオペ launch は follower 実機 controller と `teleop_ik_node` をまとめて起動する。
-`/teleop/target_pose` は SoArmVR に合わせて BestEffort で購読し、IK が収束しない場合は
-関節指令を publish しない。IK の各反復と出力値は URDF の関節上下限に clamp される。
-SoArmVR の相対回転はローカル pitch を joint 4、ローカル roll を joint 5 に対応させ、
-yaw は使用しない。joint 4・5 を回転目標に固定した上で、joint 1〜3 のみを位置 IK で解く。
+`teleop_ik_node` は follower controller と組み合わせて使用する。`/teleop/target` を購読し、
+IK が収束しない場合は関節指令を publish しない。IK の各反復と出力値は URDF の関節上下限に clamp される。
+joint 4・5 を回転目標に固定した上で、joint 1〜3 のみを位置 IK で解く。
 各フレームは直前に成功した IK 解を初期値にし、非収束時は最後の成功解を維持する。
 
-### リセット (VR A ボタン)
+### Gamepad 制御
 
-SO-101 follower を home 姿勢に戻すには VR コントローラの A ボタン (`<XRController>{RightHand}/primaryButton`) を押す. 発行されるトピックは `/teleop/reset` (型: `teleop_ik/msg/ResetCommand`). `teleop_ik` ノードが受信し, `home_j1_rad`..`home_j6_rad` パラメータの値を使って IK バイパスで JointTrajectory を `/follower/arm_controller/joint_trajectory` と `/follower/gripper_controller/joint_trajectory` に publish する. 移動時間は `reset_duration_sec` (デフォルト 2.0 秒).
+ゲームパッド (joy_node) で SO-101 follower を制御するには:
+
+ros2 launch teleop_ik gamepad_teleop.launch.py
 
 ## 検証状況
 

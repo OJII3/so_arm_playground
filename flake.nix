@@ -34,25 +34,18 @@
           )
         );
 
-      mkUloop = pkgs: pkgs.callPackage ./SoArmVR/nix/uloop.nix { };
     in
     {
-      packages = forAllSystems (pkgs: {
-        uloop = mkUloop pkgs;
-      });
-
       devShells = nixpkgs.lib.genAttrs systems (
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          uloop = mkUloop pkgs;
           isLinux = pkgs.stdenv.isLinux;
           isDarwin = pkgs.stdenv.isDarwin;
 
           commonPackages = [
             pkgs.git
             pkgs.uv
-            uloop
           ];
 
           linuxRuntimePackages = pkgs.lib.optionals isLinux [
@@ -72,9 +65,6 @@
             packages = commonPackages ++ linuxRuntimePackages;
             inherit shellHook;
           };
-        }
-        // {
-          soarmvr = pkgs.callPackage ./SoArmVR/nix/dotnet-shell.nix { };
         }
         # RoboStack シェル (`nix develop .#robostack`). macOS で micromamba + ROS 2 を使う.
         // pkgs.lib.optionalAttrs isDarwin {
