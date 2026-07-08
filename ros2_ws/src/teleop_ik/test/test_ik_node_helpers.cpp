@@ -18,7 +18,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 
-#include <teleop_ik/msg/reset_command.hpp>
 #include "teleop_ik/ik_node.hpp"
 
 namespace
@@ -158,8 +157,8 @@ struct CallbacksFixture : public TeleopIKHelpersTest
   {
     TeleopIKHelpersTest::SetUp();
     node_->active_ = true;
-    node_->unity_anchor_set_ = true;
-    node_->unity_anchor_pos_.setZero();
+    node_->anchor_set_ = true;
+    node_->anchor_pos_.setZero();
     node_->arm_init_pos_.setZero();
     node_->q_solution_ = node_->q_current_;
     node_->wrist_init_pos_.setZero();
@@ -179,78 +178,12 @@ struct CallbacksFixture : public TeleopIKHelpersTest
         /*stick_deadzone=*/0.0,
         /*stick_max_delta_per_msg=*/10.0,
         /*stick_fallback_dt=*/0.1,
-        /*unity_conversion=*/false,
         /*ik_damping=*/1e-6,
         /*ik_max_iterations=*/100,
         /*ik_tolerance=*/1e-4);
   }
 };
 
-struct ResetFixture : public TeleopIKHelpersTest
-{
-  void SetUp() override
-  {
-    const char * path = std::getenv("TELEOP_IK_TEST_URDF_PATH");
-    ASSERT_NE(path, nullptr) << "Set TELEOP_IK_TEST_URDF_PATH to expanded URDF file path";
-    rclcpp::NodeOptions opts;
-    opts.parameter_overrides().push_back(rclcpp::Parameter("urdf_path", std::string(path)));
-    for (size_t i = 0; i < 6; ++i) {
-      const std::string name = "home_j" + std::to_string(i + 1) + "_rad";
-      opts.parameter_overrides().push_back(
-          rclcpp::Parameter(name, 0.1 * static_cast<double>(i + 1)));
-    }
-    opts.parameter_overrides().push_back(
-        rclcpp::Parameter("reset_duration_sec", 1.5));
-    node_ = std::make_shared<teleop_ik::TeleopIKNode>(opts);
-    ASSERT_NE(node_, nullptr);
-  }
-  std::shared_ptr<teleop_ik::TeleopIKNode> node_;
-};
-
-struct CapturedTrajectories
-{
-  std::vector<trajectory_msgs::msg::JointTrajectory> arm;
-  std::vector<trajectory_msgs::msg::JointTrajectory> gripper;
-};
-
-CapturedTrajectories capture_reset(
-    const std::shared_ptr<teleop_ik::TeleopIKNode> & node,
-    const teleop_ik::msg::ResetCommand & msg)
-{
-  auto probe = std::make_shared<rclcpp::Node>("reset_probe");
-  CapturedTrajectories out;
-  auto arm_sub = probe->create_subscription<trajectory_msgs::msg::JointTrajectory>(
-      "/follower/arm_controller/joint_trajectory", 10,
-      [&](trajectory_msgs::msg::JointTrajectory::SharedPtr m) { out.arm.push_back(*m); });
-  auto gripper_sub = probe->create_subscription<trajectory_msgs::msg::JointTrajectory>(
-      "/follower/gripper_controller/joint_trajectory", 10,
-      [&](trajectory_msgs::msg::JointTrajectory::SharedPtr m) { out.gripper.push_back(*m); });
-
-  auto wait_for = [&](auto predicate) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (std::chrono::steady_clock::now() < deadline) {
-      rclcpp::spin_some(probe);
-      if (predicate()) return true;
-      rclcpp::sleep_for(std::chrono::milliseconds(10));
-    }
-    return predicate();
-  };
-
-  wait_for([&]() {
-    return probe->count_publishers("/follower/arm_controller/joint_trajectory") > 0 &&
-           probe->count_publishers("/follower/gripper_controller/joint_trajectory") > 0;
-  });
-
-  node->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
-
-  wait_for([&]() {
-    return out.arm.size() >= 1 && out.gripper.size() >= 1;
-  });
-
-  rclcpp::spin_some(probe);
-
-  return out;
-}
 }  // namespace
 
 TEST_F(CallbacksFixture, OnTargetWithInputIntegratesStickPerMessage)
@@ -266,16 +199,16 @@ TEST_F(CallbacksFixture, OnTargetWithInputIntegratesStickPerMessage)
 
 TEST_F(CallbacksFixture, FirstMessageSetsAnchorWithoutIntegration)
 {
-  // anchor 未設定 (unity_anchor_set_=false) で呼び出すと,
+  // anchor 未設定 (anchor_set_=false) で呼び出すと,
   // スティック積分されず, integrated_stick はゼロのまま, IK も解かない.
-  node_->unity_anchor_set_ = false;
+  node_->anchor_set_ = false;
   geometry_msgs::msg::Pose pose;
   pose.position.x = 0.0;
   pose.position.y = 0.0;
   pose.position.z = 0.0;
   const bool solved = call_on_target_with_input(pose, 1.0f, 0.5f);
   EXPECT_FALSE(solved);
-  EXPECT_TRUE(node_->unity_anchor_set_);
+  EXPECT_TRUE(node_->anchor_set_);
   EXPECT_NEAR(node_->integrated_stick_.x(), 0.0, 1e-9);
   EXPECT_NEAR(node_->integrated_stick_.y(), 0.0, 1e-9);
 }
@@ -288,7 +221,7 @@ TEST_F(CallbacksFixture, TargetUsesPreviousSuccessfulSolutionAsNextSeed)
   pose_anchor.position.y = 0.0;
   pose_anchor.position.z = 0.0;
   EXPECT_FALSE(call_on_target_with_input(pose_anchor, 0.0f, 0.0f));
-  EXPECT_TRUE(node_->unity_anchor_set_);
+  EXPECT_TRUE(node_->anchor_set_);
 
   // 2 回目: 異なる target で IK を解かせ, q_solution_ が更新される.
   // on_target_with_input は内部で solve_ik を呼び, 結果は q_seed (q_solution_)
@@ -350,7 +283,6 @@ TEST_F(CallbacksFixture, StickDeadzoneBlocksSmallInputs)
       /*stick_deadzone=*/0.1,
       /*stick_max_delta_per_msg=*/10.0,
       /*stick_fallback_dt=*/0.1,
-      /*unity_conversion=*/false,
       /*ik_damping=*/1e-6,
       /*ik_max_iterations=*/100,
       /*ik_tolerance=*/1e-4);
@@ -377,7 +309,6 @@ TEST_F(CallbacksFixture, StickMaxDeltaPerMsgClampsIntegration)
       /*stick_deadzone=*/0.0,
       /*stick_max_delta_per_msg=*/0.05,
       /*stick_fallback_dt=*/1.0,
-      /*unity_conversion=*/false,
       /*ik_damping=*/1e-6,
       /*ik_max_iterations=*/100,
       /*ik_tolerance=*/1e-4);
@@ -417,14 +348,14 @@ TEST_F(TeleopIKHelpersTest, SolveIkKeepsJoint4Fixed)
 
 TEST_F(CallbacksFixture, IkInactiveFreezesPositionAndMovesWrist)
 {
-  node_->unity_anchor_set_ = false;
+  node_->anchor_set_ = false;
 
   geometry_msgs::msg::Pose anchor_pose;
   anchor_pose.position.x = 0.0;
   anchor_pose.position.y = 0.0;
   anchor_pose.position.z = 0.0;
   EXPECT_FALSE(call_on_target_with_input(anchor_pose, 0.0f, 0.0f, true));
-  EXPECT_TRUE(node_->unity_anchor_set_);
+  EXPECT_TRUE(node_->anchor_set_);
 
   const auto & model = node_->model_;
   const auto jid_4 = model.getJointId("4");
@@ -465,7 +396,7 @@ TEST_F(CallbacksFixture, IkModeReentryPreservesMovedEePosition)
   pinocchio::updateFramePlacements(node_->model_, node_->data_);
   const Eigen::Vector3d neutral_ee = node_->data_.oMf[node_->ee_frame_id_].translation();
   node_->arm_init_pos_ = neutral_ee;
-  node_->unity_anchor_pos_.setZero();
+  node_->anchor_pos_.setZero();
 
   // 1st: IK mode at ros_pos = (0,0,0)
   // delta = 0 - 0 = 0, target = neutral_ee → IK succeeds from neutral
@@ -494,8 +425,8 @@ TEST_F(CallbacksFixture, IkModeReentryPreservesMovedEePosition)
 
   // Verify arm_init_pos_ was updated to the EE position at re-entry
   EXPECT_LT((node_->arm_init_pos_ - ee_after_ik).norm(), 1e-4);
-  // Verify unity_anchor_pos_ is reset to current ros_pos
-  EXPECT_NEAR(node_->unity_anchor_pos_.x(), 0.1, 1e-9);
+  // Verify anchor_pos_ is reset to current ros_pos
+  EXPECT_NEAR(node_->anchor_pos_.x(), 0.1, 1e-9);
 }
 
 TEST_F(CallbacksFixture, OnTargetWithInputInjectsFkForWristJoints)
@@ -571,154 +502,4 @@ TEST_F(CallbacksFixture, OnTargetWithInputClampsFkForWristJointsToLimit)
   EXPECT_NEAR(node_->q_solution_[idx_q_5], upper_5, 1e-9);
 }
 
-// ---- ResetCommand 経路 ----
 
-TEST_F(ResetFixture, OnResetUsesParamDefaultsForAllNaN)
-{
-  teleop_ik::msg::ResetCommand msg;
-  for (size_t i = 0; i < 6; ++i) {
-    msg.home_joints[i] = std::numeric_limits<float>::quiet_NaN();
-  }
-  msg.duration_sec = 0.0f;
-
-  const auto capt = capture_reset(node_, msg);
-
-  ASSERT_EQ(capt.arm.size(), 1u);
-  ASSERT_EQ(capt.arm[0].points.size(), 1u);
-  ASSERT_EQ(capt.arm[0].points[0].positions.size(), 5u);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[0], 0.1, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[1], 0.2, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[2], 0.3, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[3], 0.4, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[4], 0.5, 1e-6);
-  ASSERT_EQ(capt.gripper.size(), 1u);
-  ASSERT_EQ(capt.gripper[0].points.size(), 1u);
-  ASSERT_EQ(capt.gripper[0].points[0].positions.size(), 1u);
-  EXPECT_NEAR(capt.gripper[0].points[0].positions[0], 0.6, 1e-6);
-
-  EXPECT_FALSE(node_->active_);
-}
-
-TEST_F(ResetFixture, OnResetPartialOverride)
-{
-  teleop_ik::msg::ResetCommand msg;
-  msg.home_joints[0] = 0.7f;
-  for (size_t i = 1; i < 6; ++i) {
-    msg.home_joints[i] = std::numeric_limits<float>::quiet_NaN();
-  }
-  msg.duration_sec = 0.0f;
-
-  const auto capt = capture_reset(node_, msg);
-
-  ASSERT_EQ(capt.arm.size(), 1u);
-  ASSERT_EQ(capt.arm[0].points.size(), 1u);
-  ASSERT_EQ(capt.arm[0].points[0].positions.size(), 5u);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[0], 0.7, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[1], 0.2, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[2], 0.3, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[3], 0.4, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[4], 0.5, 1e-6);
-
-  EXPECT_FALSE(node_->active_);
-}
-
-TEST_F(ResetFixture, OnResetUsesProvidedDuration)
-{
-  teleop_ik::msg::ResetCommand msg;
-  msg.duration_sec = 0.5f;
-
-  const auto capt = capture_reset(node_, msg);
-
-  ASSERT_EQ(capt.arm.size(), 1u);
-  ASSERT_EQ(capt.arm[0].points.size(), 1u);
-  EXPECT_NEAR(
-      rclcpp::Duration(capt.arm[0].points[0].time_from_start).seconds(), 0.5, 1e-6);
-  ASSERT_EQ(capt.gripper.size(), 1u);
-  ASSERT_EQ(capt.gripper[0].points.size(), 1u);
-  EXPECT_NEAR(
-      rclcpp::Duration(capt.gripper[0].points[0].time_from_start).seconds(), 0.5, 1e-6);
-
-  EXPECT_FALSE(node_->active_);
-}
-
-TEST_F(ResetFixture, OnResetDurationFallsBackOnZeroOrNaN)
-{
-  {
-    teleop_ik::msg::ResetCommand msg;
-    msg.duration_sec = 0.0f;
-
-    const auto capt = capture_reset(node_, msg);
-
-    ASSERT_EQ(capt.arm.size(), 1u);
-    EXPECT_NEAR(
-        rclcpp::Duration(capt.arm[0].points[0].time_from_start).seconds(), 1.5, 1e-6);
-  }
-  {
-    teleop_ik::msg::ResetCommand msg;
-    msg.duration_sec = std::numeric_limits<float>::quiet_NaN();
-
-    const auto capt = capture_reset(node_, msg);
-
-    ASSERT_EQ(capt.arm.size(), 1u);
-    EXPECT_NEAR(
-        rclcpp::Duration(capt.arm[0].points[0].time_from_start).seconds(), 1.5, 1e-6);
-  }
-
-  EXPECT_FALSE(node_->active_);
-}
-
-TEST_F(ResetFixture, OnResetClearsActiveSession)
-{
-  node_->active_ = true;
-  node_->unity_anchor_set_ = true;
-  node_->unity_anchor_pos_ = Eigen::Vector3d(1.0, 2.0, 3.0);
-  node_->integrated_stick_ = Eigen::Vector2d(0.4, 0.5);
-
-  teleop_ik::msg::ResetCommand msg;
-  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
-
-  EXPECT_FALSE(node_->active_);
-  EXPECT_FALSE(node_->unity_anchor_set_);
-  EXPECT_EQ(node_->integrated_stick_.x(), 0.0);
-  EXPECT_EQ(node_->integrated_stick_.y(), 0.0);
-}
-
-TEST_F(ResetFixture, OnResetPublishesArmAndGripper)
-{
-  teleop_ik::msg::ResetCommand msg;
-  for (size_t i = 0; i < 6; ++i) {
-    msg.home_joints[i] = std::numeric_limits<float>::quiet_NaN();
-  }
-  msg.duration_sec = 0.0f;
-
-  const auto capt = capture_reset(node_, msg);
-
-  ASSERT_EQ(capt.arm.size(), 1u);
-  ASSERT_EQ(capt.gripper.size(), 1u);
-  ASSERT_EQ(capt.arm[0].joint_names.size(), 5u);
-  ASSERT_EQ(capt.arm[0].points.size(), 1u);
-  EXPECT_EQ(capt.arm[0].points[0].positions.size(), 5u);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[0], 0.1, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[1], 0.2, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[2], 0.3, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[3], 0.4, 1e-6);
-  EXPECT_NEAR(capt.arm[0].points[0].positions[4], 0.5, 1e-6);
-  EXPECT_NEAR(rclcpp::Duration(capt.arm[0].points[0].time_from_start).seconds(), 1.5, 1e-6);
-  ASSERT_EQ(capt.gripper[0].joint_names.size(), 1u);
-  ASSERT_EQ(capt.gripper[0].points.size(), 1u);
-  EXPECT_EQ(capt.gripper[0].points[0].positions.size(), 1u);
-  EXPECT_NEAR(capt.gripper[0].points[0].positions[0], 0.6, 1e-6);
-}
-
-TEST_F(ResetFixture, OnResetDoesNotTouchSolution)
-{
-  node_->q_solution_ = node_->q_current_;
-
-  teleop_ik::msg::ResetCommand msg;
-  for (size_t i = 0; i < 6; ++i) {
-    msg.home_joints[i] = std::numeric_limits<float>::quiet_NaN();
-  }
-  node_->on_reset_msg(std::make_shared<teleop_ik::msg::ResetCommand>(msg));
-
-  EXPECT_NEAR((node_->q_solution_ - node_->q_current_).norm(), 0.0, 1e-9);
-}

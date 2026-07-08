@@ -7,20 +7,8 @@ teleop_ik_node:
     ik_max_iterations: 100
     ik_tolerance: 1.0e-4
     trajectory_time_from_start: 0.1
-    unity_conversion: true
     # Stick-driven wrist integration
     stick_velocity_scale: 1.5       # rad/sec at full stick deflection
     stick_deadzone: 0.1             # input magnitude below this is zero
     stick_max_delta_per_msg: 0.2    # rad; safety cap per message
     stick_fallback_dt: 0.0111       # sec; used when header.stamp is missing/invalid
-    # Home joint angles for /teleop/reset (VR A button).
-    # All zeros (the default) means the arm folds to a "neutral" pose
-    # at startup; override per-launch to match the desired rest pose.
-    home_j1_rad: 0.0
-    home_j2_rad: 0.0
-    home_j3_rad: 0.0
-    home_j4_rad: 0.0
-    home_j5_rad: 0.0
-    home_j6_rad: 0.0
-    # Time-from-start for the single-waypoint reset trajectory.
-    reset_duration_sec: 2.0
