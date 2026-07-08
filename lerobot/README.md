@@ -67,8 +67,8 @@ uv run lerobot-teleoperate \
 データ収録・学習で Hub を使う場合は:
 
 ```bash
-hf auth login --token ${HUGGINGFACE_TOKEN} --add-to-git-credential
-HF_USER=$(NO_COLOR=1 hf auth whoami | awk -F': *' '$1 ~ /user/ {print $2}')
+uv run hf auth login --token ${HUGGINGFACE_TOKEN} --add-to-git-credential
+HF_USER=$(uv run hf auth whoami --quiet)
 ```
 
 ## データ収録
