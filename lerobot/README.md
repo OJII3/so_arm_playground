@@ -68,7 +68,7 @@ uv run lerobot-teleoperate \
 
 ```bash
 hf auth login --token ${HUGGINGFACE_TOKEN} --add-to-git-credential
-HF_USER=$(NO_COLOR=1 hf auth whoami | awk -F': *' 'NR==1 {print $2}')
+HF_USER=$(NO_COLOR=1 hf auth whoami | awk -F': *' '$1 ~ /user/ {print $2}')
 ```
 
 ## データ収録
