@@ -46,6 +46,7 @@
           commonPackages = [
             pkgs.git
             pkgs.uv
+            pkgs.ffmpeg-headless
           ];
 
           linuxRuntimePackages = pkgs.lib.optionals isLinux [
@@ -57,6 +58,7 @@
           ];
 
           shellHook = ''
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.ffmpeg-headless ]}''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
             echo "SO arm playground dev shell"
           '';
         in
