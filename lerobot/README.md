@@ -62,6 +62,15 @@ uv run lerobot-teleoperate \
     --teleop.id=leader_arm
 ```
 
+## Hugging Face Hub ログイン
+
+データ収録・学習で Hub を使う場合は:
+
+```bash
+hf auth login --token ${HUGGINGFACE_TOKEN} --add-to-git-credential
+HF_USER=$(NO_COLOR=1 hf auth whoami | awk -F': *' 'NR==1 {print $2}')
+```
+
 ## データ収録
 
 ```bash
@@ -81,7 +90,8 @@ uv run lerobot-record \
 
 ```bash
 uv run lerobot-dataset-viz \
-    --repo_id=${HF_USER}/so101_dataset
+    --repo-id=${HF_USER}/so101_dataset \
+    --episode-index=0
 ```
 
 ## ACT 学習
