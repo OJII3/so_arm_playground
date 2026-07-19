@@ -11,6 +11,16 @@ cd lerobot
 uv sync
 ```
 
+### CUDA の確認
+
+Windows/Linux では `uv sync` が CUDA 13.0 版 PyTorch を導入する。学習前に GPU が認識されていることを確認する:
+
+```bash
+uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+```
+
+この環境での期待値は `2.11.0+cu130`、`True`、`NVIDIA GeForce RTX 3060`。
+
 ## ハードウェア設定
 
 ### USB ポートの特定
@@ -90,11 +100,20 @@ uv run lerobot-record \
     --dataset.single_task="pick up the block"
 ```
 
+新規収録では、LeRobot が `dataset.repo_id` の末尾に収録開始日時を付加する。
+収録ログまたは Hub で実際の ID を確認し、以降のコマンドで使用する:
+
+```bash
+DATASET_REPO_ID=${HF_USER}/so101_dataset_20260718_171048
+```
+
+新しく収録した場合は、`DATASET_REPO_ID` をその収録で生成された ID に更新する。
+
 ## 可視化
 
 ```bash
 uv run lerobot-dataset-viz \
-    --repo-id=${HF_USER}/so101_dataset \
+    --repo-id=${DATASET_REPO_ID} \
     --episode-index=0
 ```
 
@@ -103,7 +122,9 @@ uv run lerobot-dataset-viz \
 ```bash
 uv run lerobot-train \
     --policy.type=act \
-    --dataset.repo_id=${HF_USER}/so101_dataset \
+    --policy.repo_id=${HF_USER}/act_so101 \
+    --dataset.repo_id=${DATASET_REPO_ID} \
+    --dataset.video_backend=pyav \
     --output_dir=outputs/train/act_so101 \
     --policy.device=cuda
 ```
