@@ -45,11 +45,17 @@
 
           commonPackages = [
             pkgs.git
+            pkgs.python312
             pkgs.uv
             pkgs.ffmpeg-headless
           ];
 
-          linuxRuntimePackages = pkgs.lib.optionals isLinux [
+          linuxBuildPackages = pkgs.lib.optionals isLinux [
+            pkgs.linuxHeaders
+          ];
+
+          linuxRuntimeLibraries = pkgs.lib.optionals isLinux [
+            pkgs.stdenv.cc.cc.lib
             pkgs.libGL
             pkgs.libx11
             pkgs.libxcursor
@@ -57,14 +63,26 @@
             pkgs.libxrandr
           ];
 
+          runtimeLibraries = [ pkgs.ffmpeg-headless ] ++ linuxRuntimeLibraries;
+
+          linuxShellHook = pkgs.lib.optionalString isLinux ''
+            export CPATH="${pkgs.linuxHeaders}/include''${CPATH:+:''$CPATH}"
+
+            # WSL exposes the host NVIDIA driver libraries outside the standard search path.
+            if [ -d /usr/lib/wsl/lib ]; then
+              export LD_LIBRARY_PATH="/usr/lib/wsl/lib:$LD_LIBRARY_PATH"
+            fi
+          '';
+
           shellHook = ''
-            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.ffmpeg-headless ]}''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibraries}''${LD_LIBRARY_PATH:+:''$LD_LIBRARY_PATH}"
+            ${linuxShellHook}
             echo "SO arm playground dev shell"
           '';
         in
         {
           default = pkgs.mkShell {
-            packages = commonPackages ++ linuxRuntimePackages;
+            packages = commonPackages ++ linuxBuildPackages ++ linuxRuntimeLibraries;
             inherit shellHook;
           };
         }
