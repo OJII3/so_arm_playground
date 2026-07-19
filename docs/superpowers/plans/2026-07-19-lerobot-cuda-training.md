@@ -159,9 +159,8 @@ uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_av
 - [ ] **Step 3: Verify the README contains the CUDA check once**
 
 ```powershell
-$readme = Get-Content -Raw README.md
-$count = ([regex]::Matches($readme, [regex]::Escape('torch.cuda.is_available()'))).Count
-if ($count -ne 1) { throw "Expected one CUDA check, found $count" }
+$matchingLines = @(Select-String -LiteralPath README.md -Pattern 'torch.cuda.is_available')
+if ($matchingLines.Count -ne 1) { throw "Expected one CUDA command line, found $($matchingLines.Count)" }
 Write-Output 'README CUDA check: PASS'
 ```
 

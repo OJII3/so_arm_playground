@@ -11,6 +11,16 @@ cd lerobot
 uv sync
 ```
 
+### CUDA の確認
+
+Windows/Linux では `uv sync` が CUDA 13.0 版 PyTorch を導入する。学習前に GPU が認識されていることを確認する:
+
+```bash
+uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+```
+
+この環境での期待値は `2.11.0+cu130`、`True`、`NVIDIA GeForce RTX 3060`。
+
 ## ハードウェア設定
 
 ### USB ポートの特定
