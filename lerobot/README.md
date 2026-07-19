@@ -103,6 +103,7 @@ uv run lerobot-dataset-viz \
 ```bash
 uv run lerobot-train \
     --policy.type=act \
+    --policy.repo_id=${HF_USER}/act_so101 \
     --dataset.repo_id=${HF_USER}/so101_dataset \
     --output_dir=outputs/train/act_so101 \
     --policy.device=cuda
