@@ -5,7 +5,22 @@ description = "LeRobot CLI environment for SO-101 leader/follower sync and ACT"
 requires-python = ">=3.12"
 dependencies = [
     "lerobot[core_scripts,training,feetech]",
+    "torch==2.11.0",
+    "torchvision==0.26.0",
 ]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
