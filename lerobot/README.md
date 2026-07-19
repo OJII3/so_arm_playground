@@ -90,11 +90,20 @@ uv run lerobot-record \
     --dataset.single_task="pick up the block"
 ```
 
+新規収録では、LeRobot が `dataset.repo_id` の末尾に収録開始日時を付加する。
+収録ログまたは Hub で実際の ID を確認し、以降のコマンドで使用する:
+
+```bash
+DATASET_REPO_ID=${HF_USER}/so101_dataset_20260718_171048
+```
+
+新しく収録した場合は、`DATASET_REPO_ID` をその収録で生成された ID に更新する。
+
 ## 可視化
 
 ```bash
 uv run lerobot-dataset-viz \
-    --repo-id=${HF_USER}/so101_dataset \
+    --repo-id=${DATASET_REPO_ID} \
     --episode-index=0
 ```
 
@@ -104,7 +113,7 @@ uv run lerobot-dataset-viz \
 uv run lerobot-train \
     --policy.type=act \
     --policy.repo_id=${HF_USER}/act_so101 \
-    --dataset.repo_id=${HF_USER}/so101_dataset \
+    --dataset.repo_id=${DATASET_REPO_ID} \
     --output_dir=outputs/train/act_so101 \
     --policy.device=cuda
 ```
