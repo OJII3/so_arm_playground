@@ -114,6 +114,7 @@ uv run lerobot-train \
     --policy.type=act \
     --policy.repo_id=${HF_USER}/act_so101 \
     --dataset.repo_id=${DATASET_REPO_ID} \
+    --dataset.video_backend=pyav \
     --output_dir=outputs/train/act_so101 \
     --policy.device=cuda
 ```
