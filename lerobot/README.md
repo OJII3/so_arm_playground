@@ -126,6 +126,7 @@ uv run lerobot-train \
     --dataset.repo_id=${DATASET_REPO_ID} \
     --dataset.video_backend=pyav \
     --output_dir=outputs/train/act_so101 \
+    --wandb.enable=true
     --policy.device=cuda
 ```
 
