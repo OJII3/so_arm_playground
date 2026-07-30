@@ -82,6 +82,18 @@ uv run hf auth login --token ${HUGGINGFACE_TOKEN} --add-to-git-credential
 HF_USER=$(uv run hf auth whoami --quiet)
 ```
 
+## Weights & Biases (W&B) ログイン
+
+学習ログを W&B に保存する場合は、W&B の API key を環境変数に設定してログインする:
+
+```bash
+export WANDB_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+uv run wandb login --relogin ${WANDB_API_KEY}
+uv run wandb status
+```
+
+API key は [W&B の設定画面](https://wandb.ai/authorize) から取得する。`--wandb.enable=true` を指定した学習では、このログイン済みのアカウントに学習ログが保存される。
+
 ## データ収録
 
 ```bash
